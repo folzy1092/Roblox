@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 
 local Duels = require(script.Parent.Duels)
 local FaceCamera = require(script.Parent.FaceCamera)
+local Guide = require(script.Parent.Guide)
 local Hud = require(script.Parent.Hud)
 local Menu = require(script.Parent.Menu)
 local MirrorView = require(script.Parent.MirrorView)
@@ -28,3 +29,4 @@ end
 Menu.show(hudGui)
 FaceCamera.init()
 MirrorView.init()
+Guide.init()

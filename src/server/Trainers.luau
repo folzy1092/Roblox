@@ -9,6 +9,13 @@ local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local Trainers = {}
 
+-- Seat list mirrored into ReplicatedStorage so clients see far seats even when the map
+-- around them is not streamed in (used by the guide arrow).
+local seatInfoFolder = Instance.new("Folder")
+seatInfoFolder.Name = "SeatInfo"
+seatInfoFolder.Parent = ReplicatedStorage
+local seatInfo: { [Model]: Configuration } = {}
+
 -- seat -> who sits and since when; player -> may not sit again until
 local sessions: { [Seat]: { player: Player, since: number, model: Model } } = {}
 local cooldownUntil: { [Player]: number } = {}
@@ -16,6 +23,10 @@ local cooldownUntil: { [Player]: number } = {}
 type OwnsPass = (player: Player, passName: string) -> boolean
 
 local function setActive(model: Model, active: boolean, vipBlocked: boolean?)
+	local info = seatInfo[model]
+	if info then
+		info:SetAttribute("Occupied", active)
+	end
 	local base = model:FindFirstChild("Base") :: BasePart
 	local trim = model:FindFirstChild("Trim") :: BasePart
 	local color = model:GetAttribute("Color") :: Color3
@@ -92,6 +103,15 @@ end
 local function setup(model: Model, ownsPass: OwnsPass)
 	local seat = model:FindFirstChild("Seat") :: Seat
 	local vip = model:GetAttribute("Vip") == true
+
+	local info = Instance.new("Configuration")
+	info.Name = "Seat" .. (#seatInfoFolder:GetChildren() + 1)
+	info:SetAttribute("Item", model:GetAttribute("ItemId"))
+	info:SetAttribute("Vip", vip)
+	info:SetAttribute("Position", seat.Position)
+	info:SetAttribute("Occupied", false)
+	info.Parent = seatInfoFolder
+	seatInfo[model] = info
 
 	seat.SitPrompt.Triggered:Connect(function(player)
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
