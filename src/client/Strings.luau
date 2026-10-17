@@ -2,10 +2,24 @@
 local LocalizationService = game:GetService("LocalizationService")
 local Players = game:GetService("Players")
 
-local translator: Translator? = nil
-pcall(function()
-	translator = LocalizationService:GetTranslatorForPlayerAsync(Players.LocalPlayer)
-end)
+local SUPPORTED = { en = true, ru = true }
+
+-- Our strings live in a local LocalizationTable, so ask that table directly
+-- (GetTranslatorForPlayerAsync only serves the cloud table).
+local function makeTranslator(): Translator?
+	local tableInstance = LocalizationService:WaitForChild("Strings", 10) :: LocalizationTable?
+	if not tableInstance then
+		return nil
+	end
+	local locale = string.lower(string.sub(Players.LocalPlayer.LocaleId, 1, 2))
+	if not SUPPORTED[locale] then
+		locale = "en"
+	end
+	local ok, result = pcall(tableInstance.GetTranslator, tableInstance, locale)
+	return if ok then result else nil
+end
+
+local translator = makeTranslator()
 
 local Strings = {}
 

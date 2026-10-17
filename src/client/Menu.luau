@@ -43,6 +43,7 @@ function Menu.show(hudGui: ScreenGui)
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.fromRGB(12, 10, 20),
 		BackgroundTransparency = 0.15,
+		Active = true,
 		Parent = gui,
 	})
 	Ui.label({

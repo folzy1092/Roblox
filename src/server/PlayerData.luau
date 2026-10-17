@@ -3,17 +3,20 @@ local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Progression = require(ReplicatedStorage.Shared.Progression)
+local SaveLock = require(ReplicatedStorage.Shared.SaveLock)
 
 local STORE_NAME = "PlayerData_v1"
 local RETRY_DELAYS = { 1, 2, 4 }
 local AUTOSAVE_SECONDS = 60
+local CLAIM_ATTEMPTS = 8
+local CLAIM_RETRY_SECONDS = 4
 
 local store = nil
 pcall(function()
 	store = DataStoreService:GetDataStore(STORE_NAME)
 end)
 
-type Session = { data: Progression.Data, canSave: boolean }
+type Session = { data: Progression.Data, canSave: boolean, released: boolean }
 
 local sessions: { [Player]: Session } = {}
 
@@ -51,17 +54,55 @@ local function merge(saved: any): Progression.Data
 	return data
 end
 
+-- Claims the session lock and loads data. Waits while another server still holds it.
 function PlayerData.load(player: Player)
-	local ok, saved = false, nil
+	local ok, saved, claimed = false, nil, false
+	local errors = 0
 	if store then
-		ok, saved = withRetries(function()
-			return store:GetAsync(keyFor(player))
-		end)
+		for attempt = 1, CLAIM_ATTEMPTS do
+			local callOk, err = pcall(function()
+				store:UpdateAsync(keyFor(player), function(stored)
+					local record
+					record, claimed = SaveLock.tryClaim(stored, game.JobId, os.time())
+					saved = stored and stored.data
+					return record
+				end)
+			end)
+			ok = callOk and claimed
+			if ok or player.Parent == nil then
+				break
+			end
+			if not callOk then
+				-- DataStore error (e.g. Studio without API access): fail fast, don't hold the player
+				warn(`[PlayerData] load attempt {attempt} failed for {player.Name}: {err}`)
+				errors += 1
+				if errors >= 3 or string.find(tostring(err), "403") then
+					break
+				end
+				task.wait(1)
+			else
+				-- another server still holds the lock (player just hopped): wait for its release save
+				task.wait(CLAIM_RETRY_SECONDS)
+			end
+		end
 	end
+
+	if player.Parent == nil then
+		-- left while loading: give the lock back, keep stored data untouched
+		if ok then
+			pcall(function()
+				store:UpdateAsync(keyFor(player), function(stored)
+					return SaveLock.prepareSave(stored, saved, game.JobId, os.time(), true)
+				end)
+			end)
+		end
+		return
+	end
+
 	if not ok then
-		warn(`[PlayerData] load failed for {player.Name}, progress will not be saved: {saved}`)
+		warn(`[PlayerData] could not load {player.Name}, progress will not be saved`)
 	end
-	sessions[player] = { data = merge(if ok then saved else nil), canSave = ok }
+	sessions[player] = { data = merge(if ok then saved else nil), canSave = ok, released = false }
 	player:SetAttribute("DataLoaded", ok)
 	PlayerData.publish(player)
 end
@@ -90,31 +131,47 @@ function PlayerData.publish(player: Player)
 	player:SetAttribute("Items", table.concat(owned, ","))
 end
 
-function PlayerData.save(player: Player)
+function PlayerData.save(player: Player, release: boolean?)
 	local session = sessions[player]
 	if not session or not session.canSave or not store then
 		return
 	end
+	local written = false
 	local ok, err = withRetries(function()
-		store:SetAsync(keyFor(player), session.data)
+		store:UpdateAsync(keyFor(player), function(stored)
+			local record = SaveLock.prepareSave(stored, session.data, game.JobId, os.time(), release == true)
+			written = record ~= nil
+			return record
+		end)
 	end)
 	if not ok then
 		warn(`[PlayerData] save failed for {player.Name}: {err}`)
+	elseif not written then
+		-- another server took over this player: never write stale data again
+		session.canSave = false
+		warn(`[PlayerData] lost session lock for {player.Name}, saving disabled`)
 	end
 end
 
 function PlayerData.release(player: Player)
-	PlayerData.save(player)
+	local session = sessions[player]
+	if not session or session.released then
+		return
+	end
+	session.released = true
+	PlayerData.save(player, true)
 	sessions[player] = nil
 end
 
 function PlayerData.saveAll()
 	local threads = {}
-	for player in sessions do
-		table.insert(threads, task.spawn(PlayerData.save, player))
+	for player, session in sessions do
+		if not session.released then
+			table.insert(threads, task.spawn(PlayerData.release, player))
+		end
 	end
 	-- give spawned saves time to finish during shutdown
-	local deadline = os.clock() + 20
+	local deadline = os.clock() + 25
 	while os.clock() < deadline do
 		local busy = false
 		for _, thread in threads do
@@ -122,7 +179,7 @@ function PlayerData.saveAll()
 				busy = true
 			end
 		end
-		if not busy then
+		if not busy and next(sessions) == nil then
 			break
 		end
 		task.wait(0.5)
@@ -132,8 +189,10 @@ end
 task.spawn(function()
 	while true do
 		task.wait(AUTOSAVE_SECONDS)
-		for player in sessions do
-			task.spawn(PlayerData.save, player)
+		for player, session in sessions do
+			if not session.released then
+				task.spawn(PlayerData.save, player)
+			end
 		end
 	end
 end)

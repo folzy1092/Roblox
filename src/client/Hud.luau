@@ -27,6 +27,7 @@ function Hud.confirmRebirth(gui: ScreenGui)
 	local nextTier = Config.Tiers[attr("Rebirths", 0) + 2]
 	local overlay = Ui.make("Frame", {
 		Name = "Confirm",
+		Active = true,
 		Size = UDim2.fromScale(1, 1),
 		BackgroundColor3 = Color3.new(0, 0, 0),
 		BackgroundTransparency = 0.4,
