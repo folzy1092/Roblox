@@ -83,20 +83,33 @@ local function rebuildClone(character: Model)
 	if humanoid then
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	end
-	local src, dst = {}, {}
-	for _, d in character:GetDescendants() do
-		if d:IsA("BasePart") then
-			table.insert(src, d)
+	-- pair parts by their path inside the character (descendant order is not stable)
+	local function pathOf(inst: Instance, root: Instance): string
+		local names = {}
+		local node = inst
+		while node and node ~= root do
+			table.insert(names, 1, node.Name)
+			node = node.Parent
 		end
+		return table.concat(names, "/")
 	end
+	local byPath: { [string]: { BasePart } } = {}
 	for _, d in copy:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.Anchored = true
-			table.insert(dst, d)
+			local key = pathOf(d, copy)
+			byPath[key] = byPath[key] or {}
+			table.insert(byPath[key], d)
 		end
 	end
-	for i = 1, math.min(#src, #dst) do
-		table.insert(pairs_, { src[i], dst[i] })
+	for _, d in character:GetDescendants() do
+		if d:IsA("BasePart") then
+			local list = byPath[pathOf(d, character)]
+			local twin = list and table.remove(list, 1)
+			if twin then
+				table.insert(pairs_, { d, twin })
+			end
+		end
 	end
 	copy.Parent = world
 	clone = copy

@@ -36,6 +36,9 @@ local function cachePasses(player: Player)
 		end
 	end
 	passCache[player] = owned
+	for name in Config.GamePasses do
+		player:SetAttribute("Pass_" .. name, ownsPass(player, name))
+	end
 end
 
 Trainers.init(ownsPass)
@@ -122,6 +125,20 @@ Players.PlayerAdded:Connect(onPlayerAdded)
 for _, player in Players:GetPlayers() do
 	task.spawn(onPlayerAdded, player)
 end
+
+-- Purchase from the VIP/store panel: unlock right away, no rejoin needed.
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+	if not purchased then
+		return
+	end
+	for name, id in Config.GamePasses do
+		if id == passId then
+			passCache[player] = passCache[player] or {}
+			passCache[player][name] = true
+			player:SetAttribute("Pass_" .. name, true)
+		end
+	end
+end)
 
 Players.PlayerRemoving:Connect(function(player)
 	PlayerData.release(player)

@@ -51,3 +51,12 @@ trainer.guasha,Gua Sha Trainer,,,Gua Sha Trainer,Тренажёр гуаши
 trainer.guasha_vip,VIP Gua Sha Trainer,,,VIP Gua Sha Trainer,VIP тренажёр гуаши
 trainer.bonetapper,Bone Tapper Trainer,,,Bone Tapper Trainer,Тренажёр Bone Tapper
 trainer.bonetapper_vip,VIP Bone Tapper Trainer,,,VIP Bone Tapper Trainer,VIP тренажёр Bone Tapper
+hud.vip,VIP,,,VIP,VIP
+store.title,VIP & Boosts,,,VIP & Boosts,VIP и бусты
+store.buy,{price} R$,,,{price} R$,{price} R$
+store.owned,Owned,,,Owned,Куплено
+store.soon,Soon,,,Soon,Скоро
+pass.Vip,VIP Trainers,,,VIP Trainers,VIP-тренажёры
+pass.Vip.desc,Golden trainers with x6 instead of x3,,,Golden trainers with x6 instead of x3,Золотые тренажёры: x6 вместо x3
+pass.X2,x2 Rating & Glow,,,x2 Rating & Glow,x2 рейтинг и Glow
+pass.X2.desc,Every click counts double. Forever.,,,Every click counts double. Forever.,Каждый клик считается дважды. Навсегда.

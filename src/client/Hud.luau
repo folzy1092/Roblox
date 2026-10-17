@@ -120,22 +120,23 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 	local side = Ui.make("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0.012, 0.5),
-		Size = UDim2.fromScale(0.12, 0.3),
+		Size = UDim2.fromScale(0.12, 0.4),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
 		Ui.make("UIListLayout", { Padding = UDim.new(0.04, 0), SortOrder = Enum.SortOrder.LayoutOrder }),
-		Ui.make("UISizeConstraint", { MinSize = Vector2.new(110, 150) }),
+		Ui.make("UISizeConstraint", { MinSize = Vector2.new(110, 200) }),
 	})
 	for order, entry in {
 		{ "hud.shop", Color3.fromRGB(255, 120, 190), Color3.fromRGB(140, 90, 255), "shop" },
 		{ "hud.duels", Color3.fromRGB(255, 90, 80), Color3.fromRGB(170, 30, 70), "duels" },
+		{ "hud.vip", Color3.fromRGB(255, 220, 90), Color3.fromRGB(230, 140, 20), "store" },
 		{ "hud.menu", Color3.fromRGB(90, 200, 255), Color3.fromRGB(60, 90, 200), "menu" },
 	} do
 		-- gradient lives on the button background only; text is a child label so it stays white
 		local button = Ui.make("TextButton", {
 			LayoutOrder = order,
-			Size = UDim2.fromScale(1, 0.3),
+			Size = UDim2.fromScale(1, 0.22),
 			Text = "",
 			AutoButtonColor = true,
 			BackgroundColor3 = Color3.new(1, 1, 1),

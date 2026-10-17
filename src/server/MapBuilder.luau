@@ -7,20 +7,34 @@ local MapBuilder = {}
 local rng = Random.new(20261017) -- fixed seed: same map every server
 
 local PLAZA_SIZE = Vector3.new(64, 4, 64)
-local TRAINER_AREA_X = 40
-local ARENA_CENTER = Vector3.new(0, 0, 84)
-local ARENA_RADIUS = 26
-local WORLD_RADIUS = 125 -- invisible wall; cliffs start right behind it
-local POND = Vector3.new(-82, 0, 58)
+-- Sized for 32 players: ~25 trainer seats, 2 duel stations, room to walk around.
+local ARENA_CENTER = Vector3.new(0, 0, 125)
+local ARENA_RADIUS = 36
+local WORLD_RADIUS = 190 -- invisible wall; cliffs start right behind it
+local POND = Vector3.new(-95, 0, 85)
+local TITLE_Z = -118
 
 -- Every trainer seat on the map: item, VIP?, position (x, z).
-local TRAINER_SPOTS = {
-	{ "gum", false, -40, -14 }, { "gum", false, -40, -2 }, { "gum", true, -40, 10 },
-	{ "mewing", false, 40, -14 }, { "mewing", false, 40, -2 }, { "mewing", true, 40, 10 },
-	{ "jawball", false, -26, 46 }, { "jawball", true, -38, 46 },
-	{ "guasha", false, 26, 46 }, { "guasha", true, 38, 46 },
-	{ "bonetapper", false, -32, -46 }, { "bonetapper", true, 32, -46 },
-}
+local TRAINER_SPOTS = {}
+local function row(itemId: string, normal: { Vector2 }, vip: { Vector2 })
+	for _, p in normal do
+		table.insert(TRAINER_SPOTS, { itemId, false, p.X, p.Y })
+	end
+	for _, p in vip do
+		table.insert(TRAINER_SPOTS, { itemId, true, p.X, p.Y })
+	end
+end
+-- west: gum, east: mewing (starter items, most seats)
+row("gum", { Vector2.new(-72, -36), Vector2.new(-72, -22), Vector2.new(-72, -8), Vector2.new(-72, 6) },
+	{ Vector2.new(-72, 20), Vector2.new(-72, 34) })
+row("mewing", { Vector2.new(72, -36), Vector2.new(72, -22), Vector2.new(72, -8), Vector2.new(72, 6) },
+	{ Vector2.new(72, 20), Vector2.new(72, 34) })
+-- south row: jaw ball (left of the path) and gua sha (right)
+row("jawball", { Vector2.new(-62, -72), Vector2.new(-48, -72), Vector2.new(-34, -72) }, { Vector2.new(-20, -72) })
+row("guasha", { Vector2.new(34, -72), Vector2.new(48, -72), Vector2.new(62, -72) }, { Vector2.new(20, -72) })
+-- north-east: bone tapper (endgame)
+row("bonetapper", { Vector2.new(58, 72), Vector2.new(72, 72) }, { Vector2.new(86, 72) })
+
 local TRAINER_TITLES = {
 	gum = "Gum Trainer",
 	mewing = "Mewing Trainer",
@@ -205,8 +219,9 @@ end
 
 local function inBuiltArea(x: number, z: number): boolean
 	local plaza = math.abs(x) < PLAZA_SIZE.X / 2 + 6 and math.abs(z) < PLAZA_SIZE.Z / 2 + 6
-	local titleWalk = math.abs(x) < 20 and z < -30 and z > -58
-	local arena = (Vector3.new(x, 0, z) - ARENA_CENTER).Magnitude < ARENA_RADIUS + 10 or (math.abs(x) < 8 and z > 30 and z < 62)
+	local titleWalk = math.abs(x) < 22 and z < -30 and z > TITLE_Z - 12
+	local arena = (Vector3.new(x, 0, z) - ARENA_CENTER).Magnitude < ARENA_RADIUS + 12
+		or (math.abs(x) < 8 and z > 30 and z < ARENA_CENTER.Z)
 	local pond = (Vector3.new(x, 0, z) - POND).Magnitude < 20
 	if plaza or titleWalk or arena or pond then
 		return true
@@ -365,7 +380,7 @@ local function titleSign(parent: Instance)
 	local board = part({
 		Name = "TitleBoard",
 		Size = Vector3.new(34, 8, 1),
-		Position = Vector3.new(0, 14, -48),
+		Position = Vector3.new(0, 14, TITLE_Z),
 		Color = Color3.fromRGB(25, 20, 40),
 		Material = Enum.Material.SmoothPlastic,
 	})
@@ -388,7 +403,7 @@ local function titleSign(parent: Instance)
 		part({
 			Name = "TitlePillar",
 			Size = Vector3.new(1.5, 18, 1.5),
-			Position = Vector3.new(x, 9, -48),
+			Position = Vector3.new(x, 9, TITLE_Z),
 			Color = Color3.fromRGB(70, 60, 90),
 			Material = Enum.Material.SmoothPlastic,
 		}).Parent = parent
@@ -426,20 +441,22 @@ local function duelArena()
 		CanCollide = false,
 	}).Parent = folder
 
-	-- two duel pads facing each other, each with its own mirror
-	for _, side in { -1, 1 } do
-		local padPos = c + Vector3.new(side * 9, 1.4, 0)
-		part({
-			Name = "DuelPad",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.4, 7, 7),
-			CFrame = CFrame.new(padPos) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = if side < 0 then Color3.fromRGB(80, 160, 255) else red,
-			Material = Enum.Material.Neon,
-		}).Parent = folder
-		local mirrorPos = padPos + Vector3.new(side * 5, 3.4, 0)
-		mirror(folder, CFrame.lookAt(mirrorPos, mirrorPos - Vector3.new(side, 0, 0)), Vector2.new(4.4, 5.6),
-			if side < 0 then Color3.fromRGB(80, 160, 255) else red)
+	-- two duel stations, far apart; each = two pads facing each other with their own mirrors
+	for _, stationZ in { -14, 14 } do
+		for _, side in { -1, 1 } do
+			local padPos = c + Vector3.new(side * 12, 1.4, stationZ)
+			part({
+				Name = "DuelPad",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.4, 7, 7),
+				CFrame = CFrame.new(padPos) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = if side < 0 then Color3.fromRGB(80, 160, 255) else red,
+				Material = Enum.Material.Neon,
+			}).Parent = folder
+			local mirrorPos = padPos + Vector3.new(side * 5, 3.4, 0)
+			mirror(folder, CFrame.lookAt(mirrorPos, mirrorPos - Vector3.new(side, 0, 0)), Vector2.new(4.4, 5.6),
+				if side < 0 then Color3.fromRGB(80, 160, 255) else red)
+		end
 	end
 	local vs = part({
 		Name = "VsSign",
@@ -512,13 +529,14 @@ end
 local function cliffs(t: Terrain)
 	local cliffRng = Random.new(77)
 	-- inner ring of rocky hills right behind the wall, outer ring of bigger peaks
-	for _, ring in { { WORLD_RADIUS + 22, 18, 30, 4 }, { WORLD_RADIUS + 55, 30, 48, 6 } } do
+	-- three rings, each taller: nothing behind them is visible from inside
+	for _, ring in { { WORLD_RADIUS + 24, 26, 40, 3 }, { WORLD_RADIUS + 60, 45, 70, 4 }, { WORLD_RADIUS + 110, 70, 110, 5 } } do
 		local radius, minR, maxR, step = ring[1], ring[2], ring[3], ring[4]
 		for deg = 0, 359, step do
 			local a = math.rad(deg + cliffRng:NextNumber(-2, 2))
 			local r = radius + cliffRng:NextNumber(-6, 6)
 			local size = cliffRng:NextNumber(minR, maxR)
-			local center = Vector3.new(math.cos(a) * r, cliffRng:NextNumber(-size * 0.35, size * 0.15), math.sin(a) * r)
+			local center = Vector3.new(math.cos(a) * r, cliffRng:NextNumber(size * 0.1, size * 0.5), math.sin(a) * r)
 			t:FillBall(center, size, if cliffRng:NextNumber() < 0.7 then Enum.Material.Rock else Enum.Material.Slate)
 			-- grassy caps on some peaks
 			if cliffRng:NextNumber() < 0.5 then
@@ -536,12 +554,15 @@ end
 
 local function terrain()
 	local t = workspace.Terrain
-	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(400, 12, 400), Enum.Material.Grass)
+	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(720, 12, 720), Enum.Material.Grass)
 	-- plaza, paths to trainer areas, title sign and arena
 	t:FillBlock(CFrame.new(0, -2, 0), PLAZA_SIZE, Enum.Material.Pavement)
-	t:FillBlock(CFrame.new(0, -2, -2), Vector3.new(TRAINER_AREA_X * 2 + 28, 4, 8), Enum.Material.Pavement)
-	t:FillBlock(CFrame.new(0, -2, -44), Vector3.new(8, 4, 24), Enum.Material.Pavement)
-	t:FillBlock(CFrame.new(0, -2, 46), Vector3.new(8, 4, 32), Enum.Material.Pavement)
+	-- cross paths: west-east to the trainer rows, south to the title, north to the arena
+	t:FillBlock(CFrame.new(0, -2, -2), Vector3.new(150, 4, 8), Enum.Material.Pavement)
+	t:FillBlock(CFrame.new(0, -2, (TITLE_Z - 30) / 2), Vector3.new(8, 4, -TITLE_Z - 30), Enum.Material.Pavement)
+	t:FillBlock(CFrame.new(0, -2, -60), Vector3.new(140, 4, 8), Enum.Material.Pavement)
+	t:FillBlock(CFrame.new(0, -2, (ARENA_CENTER.Z + 30) / 2), Vector3.new(8, 4, ARENA_CENTER.Z - 30), Enum.Material.Pavement)
+	t:FillBlock(CFrame.new(48, -2, 62), Vector3.new(80, 4, 8), Enum.Material.Pavement)
 	for _, spot in TRAINER_SPOTS do
 		t:FillBlock(CFrame.new(spot[3], -2, spot[4]), Vector3.new(14, 4, 14), Enum.Material.Cobblestone)
 	end
@@ -600,31 +621,31 @@ local function nature()
 	local folder = Instance.new("Folder")
 	folder.Name = "Nature"
 	-- dense forest belt along the wall hides where the world ends
-	for _ = 1, 70 do
+	for _ = 1, 100 do
 		local p = scatterPoint(WORLD_RADIUS - 22, WORLD_RADIUS + 6)
 		if p then
 			tree(folder, p, rng:NextNumber(1.3, 2))
 		end
 	end
-	for _ = 1, 55 do
+	for _ = 1, 90 do
 		local p = scatterPoint(60, WORLD_RADIUS - 4)
 		if p then
 			tree(folder, p, rng:NextNumber(0.9, 1.6))
 		end
 	end
-	for _ = 1, 70 do
+	for _ = 1, 120 do
 		local p = scatterPoint(36, WORLD_RADIUS - 4)
 		if p then
 			bush(folder, p)
 		end
 	end
-	for _ = 1, 25 do
+	for _ = 1, 45 do
 		local p = scatterPoint(40, WORLD_RADIUS - 2)
 		if p then
 			rock(folder, p)
 		end
 	end
-	for _ = 1, 60 do
+	for _ = 1, 90 do
 		local p = scatterPoint(36, WORLD_RADIUS - 6)
 		if p then
 			flowerPatch(folder, p)
@@ -639,6 +660,9 @@ local function decor()
 	for _, pos in {
 		Vector3.new(-14, 0, -7), Vector3.new(14, 0, -7), Vector3.new(-30, 0, -7), Vector3.new(30, 0, -7),
 		Vector3.new(-6, 0, -36), Vector3.new(6, 0, -36), Vector3.new(-28, 0, 28), Vector3.new(28, 0, 28),
+		Vector3.new(-46, 0, -7), Vector3.new(46, 0, -7), Vector3.new(-60, 0, -7), Vector3.new(60, 0, -7),
+		Vector3.new(-6, 0, -90), Vector3.new(6, 0, -90), Vector3.new(-6, 0, 50), Vector3.new(6, 0, 50),
+		Vector3.new(-6, 0, 80), Vector3.new(6, 0, 80), Vector3.new(30, 0, 57), Vector3.new(60, 0, 57),
 	} do
 		lamp(folder, pos)
 	end
@@ -655,20 +679,23 @@ local function snapToGround()
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Include
 	params.FilterDescendantsInstances = { workspace.Terrain }
+	-- terrain collision appears a moment after FillBlock, so retry until the ray hits
 	local heights = {}
-	for _, x in { 0, -TRAINER_AREA_X, TRAINER_AREA_X } do
-		local hit = workspace:Raycast(Vector3.new(x, 60, -2), Vector3.new(0, -120, 0), params)
-		if hit then
-			table.insert(heights, hit.Position.Y)
+	for _ = 1, 40 do
+		table.clear(heights)
+		for _, x in { 0, -40, 40 } do
+			local hit = workspace:Raycast(Vector3.new(x, 60, -2), Vector3.new(0, -120, 0), params)
+			if hit then
+				table.insert(heights, hit.Position.Y)
+			end
 		end
+		if #heights == 3 and math.max(table.unpack(heights)) > 0.05 then
+			break
+		end
+		task.wait(0.1)
 	end
-	if #heights == 0 then
-		return
-	end
-	local ground = math.max(table.unpack(heights))
-	if math.abs(ground) < 0.05 then
-		return
-	end
+	-- measured in Studio: terrain filled to y=0 renders its surface at y≈2
+	local ground = if #heights > 0 then math.max(2, math.max(table.unpack(heights))) else 2
 	local offset = Vector3.new(0, ground, 0)
 	local roots = { workspace:FindFirstChildOfClass("SpawnLocation") }
 	for _, name in { "Lobby", "Trainers", "DuelArena", "Decor", "Nature" } do

@@ -47,4 +47,10 @@ Config.GamePasses = {
 	X2 = 0,
 }
 
+-- What the VIP/store panel shows. Real price is set on the Roblox site; this is the label.
+Config.StoreItems = {
+	{ pass = "Vip", price = 249, order = 1 },
+	{ pass = "X2", price = 199, order = 2 },
+}
+
 return Config

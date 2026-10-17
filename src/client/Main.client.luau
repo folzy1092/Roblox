@@ -7,6 +7,7 @@ local Hud = require(script.Parent.Hud)
 local Menu = require(script.Parent.Menu)
 local MirrorView = require(script.Parent.MirrorView)
 local Shop = require(script.Parent.Shop)
+local Store = require(script.Parent.Store)
 
 local player = Players.LocalPlayer
 
@@ -18,6 +19,7 @@ end
 local actions = {
 	shop = Shop.init(),
 	duels = Duels.init(),
+	store = Store.init(),
 }
 local hudGui = Hud.init(actions)
 actions.menu = function()
