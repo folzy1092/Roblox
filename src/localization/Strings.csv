@@ -1,1 +1,30 @@
 Key,Source,Context,Example,en,ru
+menu.title,LOOKSMAX SIMULATOR,,,LOOKSMAX SIMULATOR,LOOKSMAX SIMULATOR
+menu.start,Start looksmaxxing,,,Start looksmaxxing,Начать прокачку
+menu.start_hint,Chew gum and level up your face,,,Chew gum and level up your face,Жуй жвачку и прокачивай лицо
+menu.duels,Duels,,,Duels,Дуэли
+menu.duels_hint,Coming soon,,,Coming soon,Скоро
+menu.rebirth,Rebirth,,,Rebirth,Перерождение
+menu.rebirth_info,{from} → {to},,,{from} → {to},{from} → {to}
+hud.glow,Glow: {n},,,Glow: {n},Glow: {n}
+hud.rating,Rating: {n}/{cap},,,Rating: {n}/{cap},Рейтинг: {n}/{cap}
+hud.rebirth_ready,Rebirth ready!,,,Rebirth ready!,Можно переродиться!
+hud.shop,Shop,,,Shop,Магазин
+hud.equip_hint,Equip an item and click!,,,Equip an item and click!,Возьми предмет и кликай!
+shop.title,Shop,,,Shop,Магазин
+shop.buy,Buy {price} Glow,,,Buy {price} Glow,Купить за {price} Glow
+shop.owned,Owned,,,Owned,Куплено
+shop.equip,Equip,,,Equip,Взять
+shop.equipped,Equipped,,,Equipped,В руке
+shop.power,x{power} per click,,,x{power} per click,x{power} за клик
+item.gum,Gum,,,Gum,Жвачка
+item.mewing,Mewing,,,Mewing,Мьюинг
+rebirth.confirm,"Reset rating, Glow and items and unlock {tier}?",,,"Reset rating, Glow and items and unlock {tier}?","Сбросить рейтинг, Glow и предметы и открыть {tier}?"
+common.yes,Yes,,,Yes,Да
+common.no,No,,,No,Нет
+common.close,Close,,,Close,Закрыть
+data.not_saved,Progress can't be saved right now,,,Progress can't be saved right now,Прогресс сейчас не сохранится
+trainer.gum,Gum Trainer,,,Gum Trainer,Тренажёр жвачки
+trainer.gum_vip,VIP Gum Trainer,,,VIP Gum Trainer,VIP тренажёр жвачки
+trainer.mewing,Mewing Trainer,,,Mewing Trainer,Тренажёр мьюинга
+trainer.mewing_vip,VIP Mewing Trainer,,,VIP Mewing Trainer,VIP тренажёр мьюинга
