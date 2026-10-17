@@ -217,7 +217,13 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 	task.spawn(function()
 		while true do
 			local endsAt = player:GetAttribute("SeatEndsAt")
-			if typeof(endsAt) == "number" then
+			local coolUntil = player:GetAttribute("SeatCooldownUntil")
+			local coolLeft = if typeof(coolUntil) == "number" then math.ceil(coolUntil - workspace:GetServerTimeNow()) else 0
+			if typeof(endsAt) ~= "number" and coolLeft > 0 then
+				setTimer.Text = Strings.get("hud.sit_cooldown", { n = coolLeft })
+				setTimer.TextColor3 = Color3.fromRGB(200, 200, 220)
+				setTimer.Visible = true
+			elseif typeof(endsAt) == "number" then
 				local left = math.max(0, math.ceil(endsAt - workspace:GetServerTimeNow()))
 				setTimer.Text = Strings.get("hud.set_timer", { t = string.format("%d:%02d", left // 60, left % 60) })
 				setTimer.TextColor3 = if left <= 10 then Color3.fromRGB(255, 110, 110) else Ui.Colors.Accent

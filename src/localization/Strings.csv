@@ -60,3 +60,4 @@ pass.Vip,VIP Trainers,,,VIP Trainers,VIP-тренажёры
 pass.Vip.desc,Golden trainers with x6 instead of x3,,,Golden trainers with x6 instead of x3,Золотые тренажёры: x6 вместо x3
 pass.X2,x2 Rating & Glow,,,x2 Rating & Glow,x2 рейтинг и Glow
 pass.X2.desc,Every click counts double. Forever.,,,Every click counts double. Forever.,Каждый клик считается дважды. Навсегда.
+hud.sit_cooldown,Can sit again in {n}s,,,Can sit again in {n}s,Сесть снова можно через {n} с

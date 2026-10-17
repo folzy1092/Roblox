@@ -37,6 +37,7 @@ Config.ClickLimitPerSec = 12
 -- trainer seat: max sitting time, then a pause before the same player can sit again
 Config.SeatMaxSeconds = 90
 Config.SeatCooldownSeconds = 10
+Config.SeatLeaveCooldown = 5 -- after standing up on your own
 
 -- In Studio playtests act as if every gamepass is owned (to test VIP seats, x2).
 Config.StudioOwnsAllPasses = true

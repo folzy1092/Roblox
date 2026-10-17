@@ -20,6 +20,18 @@ local seatInfo: { [Model]: Configuration } = {}
 local sessions: { [Seat]: { player: Player, since: number, model: Model } } = {}
 local cooldownUntil: { [Player]: number } = {}
 
+-- No re-sitting for a while after leaving a seat (stops jump-out/sit-in timer resets).
+local function setCooldown(player: Player, seconds: number)
+	local now = os.clock()
+	local untilTime = math.max(cooldownUntil[player] or 0, now + seconds)
+	cooldownUntil[player] = untilTime
+	player:SetAttribute("SeatCooldownUntil", workspace:GetServerTimeNow() + (untilTime - now))
+end
+
+local function onCooldown(player: Player): boolean
+	return (cooldownUntil[player] or 0) > os.clock()
+end
+
 type OwnsPass = (player: Player, passName: string) -> boolean
 
 local function setActive(model: Model, active: boolean, vipBlocked: boolean?)
@@ -115,7 +127,7 @@ local function setup(model: Model, ownsPass: OwnsPass)
 
 	seat.SitPrompt.Triggered:Connect(function(player)
 		local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-		if humanoid and not seat.Occupant and humanoid.Health > 0 then
+		if humanoid and not seat.Occupant and humanoid.Health > 0 and not onCooldown(player) then
 			seat:Sit(humanoid)
 		end
 	end)
@@ -126,11 +138,14 @@ local function setup(model: Model, ownsPass: OwnsPass)
 		local previous = sessions[seat]
 		if previous then
 			previous.player:SetAttribute("SeatEndsAt", nil)
+			if previous.player ~= player then
+				setCooldown(previous.player, Config.SeatLeaveCooldown)
+			end
 		end
 		sessions[seat] = nil
 		timerLabel(model).Text = ""
-		if player and (cooldownUntil[player] or 0) > os.clock() then
-			-- just got kicked for sitting too long: free the seat for others
+		if player and onCooldown(player) then
+			-- left a seat moments ago: free this seat for others
 			kick(seat)
 			setActive(model, false)
 			return
@@ -172,7 +187,7 @@ function Trainers.init(ownsPass: OwnsPass)
 			for seat, info in sessions do
 				local left = Config.SeatMaxSeconds - (now - info.since)
 				if left <= 0 then
-					cooldownUntil[info.player] = now + Config.SeatCooldownSeconds
+					setCooldown(info.player, Config.SeatCooldownSeconds)
 					sessions[seat] = nil
 					info.player:SetAttribute("SeatEndsAt", nil)
 					kick(seat)
