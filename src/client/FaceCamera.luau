@@ -24,6 +24,16 @@ local function head(): BasePart?
 	return character and character:FindFirstChild("Head") :: BasePart?
 end
 
+-- Trainer seat the player sits on, if any.
+local function trainerSeat(): BasePart?
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local seat = humanoid and humanoid.SeatPart
+	if seat and seat:GetAttribute("TrainerSeat") then
+		return seat
+	end
+	return nil
+end
+
 local function stop()
 	if not zoomed then
 		return
@@ -44,14 +54,23 @@ local function start()
 	camera.CameraType = Enum.CameraType.Scriptable
 	RunService:BindToRenderStep(BIND_NAME, Enum.RenderPriority.Camera.Value + 1, function(dt)
 		local h = head()
-		if not h or os.clock() - lastClick > IDLE_RETURN then
+		local seat = trainerSeat()
+		-- seated: stay on the mirror view; standing: return after a short idle
+		if not h or (not seat and os.clock() - lastClick > IDLE_RETURN) then
 			stop()
 			return
 		end
 		blend = math.min(blend + dt * 2, 1)
 		local eased = TweenService:GetValue(blend, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local eye = h.CFrame:PointToWorldSpace(Vector3.new(0, 0.3, -3.5))
-		local target = CFrame.lookAt(eye, h.Position)
+		local target
+		if seat then
+			-- over the left shoulder, so you see yourself and the mirror in front
+			local eye = seat.CFrame:PointToWorldSpace(Vector3.new(-3.5, 5.5, 6))
+			target = CFrame.lookAt(eye, seat.CFrame:PointToWorldSpace(Vector3.new(0, 2.4, -4.9)))
+		else
+			local eye = h.CFrame:PointToWorldSpace(Vector3.new(0, 0.3, -3.5))
+			target = CFrame.lookAt(eye, h.Position)
+		end
 		camera.CFrame = from:Lerp(target, eased)
 	end)
 end
@@ -100,6 +119,12 @@ local function onCharacter(character: Model)
 	stop()
 	local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 	humanoid.Died:Connect(stop)
+	humanoid.Seated:Connect(function(active, seatPart)
+		stop()
+		if active and seatPart and seatPart:GetAttribute("TrainerSeat") then
+			start()
+		end
+	end)
 	character.ChildAdded:Connect(hookTool)
 end
 
