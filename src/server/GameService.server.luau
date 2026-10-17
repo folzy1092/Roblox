@@ -1,5 +1,6 @@
 -- Server entry: wires players, remotes and game rules.
 local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -11,6 +12,7 @@ local Tools = require(script.Parent.Tools)
 local MapBuilder = require(script.Parent.MapBuilder)
 local RankLabel = require(script.Parent.RankLabel)
 local Face = require(script.Parent.Face)
+local Trainers = require(script.Parent.Trainers)
 
 MapBuilder.build()
 
@@ -18,6 +20,9 @@ local passCache: { [Player]: { [string]: boolean } } = {}
 local clickWindow: { [Player]: { start: number, count: number } } = {}
 
 local function ownsPass(player: Player, passName: string): boolean
+	if Config.StudioOwnsAllPasses and RunService:IsStudio() then
+		return true
+	end
 	local cached = passCache[player]
 	return cached ~= nil and cached[passName] == true
 end
@@ -33,34 +38,7 @@ local function cachePasses(player: Player)
 	passCache[player] = owned
 end
 
--- Multiplier from the trainer zone the player stands in, matching their held item.
-local function getTrainerMult(player: Player, data: Progression.Data): number
-	local trainers = workspace:FindFirstChild("Trainers")
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not trainers or not root then
-		return 1
-	end
-	local best = 1
-	for _, model in trainers:GetChildren() do
-		local zone = model:FindFirstChild("Zone")
-		if zone and model:GetAttribute("ItemId") == data.equipped then
-			local localPos = zone.CFrame:PointToObjectSpace(root.Position)
-			local half = zone.Size / 2
-			local inside = math.abs(localPos.X) <= half.X and math.abs(localPos.Z) <= half.Z and math.abs(localPos.Y) <= 6
-			if inside then
-				if model:GetAttribute("Vip") then
-					if ownsPass(player, "Vip") then
-						best = math.max(best, Config.Mult.Vip)
-					end
-				else
-					best = math.max(best, Config.Mult.Trainer)
-				end
-			end
-		end
-	end
-	return best
-end
+Trainers.init(ownsPass)
 
 local function allowClick(player: Player): boolean
 	local now = os.clock()
@@ -84,7 +62,7 @@ Remotes.Click.OnServerEvent:Connect(function(player)
 	end
 	data.equipped = tool.Name
 	Progression.applyClick(data, {
-		trainerMult = getTrainerMult(player, data),
+		trainerMult = Trainers.mult(player, data, ownsPass),
 		hasX2 = ownsPass(player, "X2"),
 	})
 	PlayerData.publish(player)

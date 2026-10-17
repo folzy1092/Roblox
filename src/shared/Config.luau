@@ -30,6 +30,9 @@ Config.Mult = {
 
 Config.ClickLimitPerSec = 12
 
+-- In Studio playtests act as if every gamepass is owned (to test VIP seats, x2).
+Config.StudioOwnsAllPasses = true
+
 -- 0 = gamepass not created yet (treated as not owned)
 Config.GamePasses = {
 	Vip = 0,
