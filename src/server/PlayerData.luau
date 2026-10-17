@@ -1,7 +1,9 @@
 -- Loads/saves player progress in DataStore and mirrors it to player attributes.
 local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Config = require(ReplicatedStorage.Shared.Config)
 local Progression = require(ReplicatedStorage.Shared.Progression)
 local SaveLock = require(ReplicatedStorage.Shared.SaveLock)
 
@@ -103,6 +105,14 @@ function PlayerData.load(player: Player)
 		warn(`[PlayerData] could not load {player.Name}, progress will not be saved`)
 	end
 	sessions[player] = { data = merge(if ok then saved else nil), canSave = ok, released = false }
+	if Config.StudioGrantAllItems and RunService:IsStudio() then
+		-- Studio testing: every item unlocked; never saved so real progress stays clean
+		for id in Config.Items do
+			sessions[player].data.items[id] = true
+		end
+		sessions[player].canSave = false
+		ok = false
+	end
 	player:SetAttribute("DataLoaded", ok)
 	PlayerData.publish(player)
 end

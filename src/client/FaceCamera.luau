@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local MiniGames = require(game:GetService("ReplicatedStorage").Shared.MiniGames)
 local Strings = require(script.Parent.Strings)
 
 local player = Players.LocalPlayer
@@ -108,6 +109,10 @@ local function hookTool(tool: Instance)
 	end
 	tool:SetAttribute("Hooked", true)
 	tool.Activated:Connect(function()
+		-- gua sha / bone tapper train through the exercise panel, not plain clicks
+		if MiniGames.kindOf(tool.Name) then
+			return
+		end
 		lastClick = os.clock()
 		remotes.Click:FireServer()
 		start()

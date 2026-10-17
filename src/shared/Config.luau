@@ -41,6 +41,8 @@ Config.SeatLeaveCooldown = 5 -- after standing up on your own
 
 -- In Studio playtests act as if every gamepass is owned (to test VIP seats, x2).
 Config.StudioOwnsAllPasses = true
+-- In Studio playtests unlock every item (progress is then not saved).
+Config.StudioGrantAllItems = true
 
 -- 0 = gamepass not created yet (treated as not owned)
 Config.GamePasses = {

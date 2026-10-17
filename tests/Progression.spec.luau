@@ -112,4 +112,9 @@ tests["item ladder: each next item costs more and hits harder"] = function()
 	truthy(P.canBuy(d, "jawball"))
 end
 
+tests["rep factor scales a click"] = function()
+	local d = P.defaultData()
+	eq(P.clickGain(d, { trainerMult = 3, hasX2 = false, factor = 5 }), 15)
+end
+
 return tests

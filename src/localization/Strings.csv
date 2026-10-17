@@ -61,3 +61,10 @@ pass.Vip.desc,Golden trainers with x6 instead of x3,,,Golden trainers with x6 in
 pass.X2,x2 Rating & Glow,,,x2 Rating & Glow,x2 рейтинг и Glow
 pass.X2.desc,Every click counts double. Forever.,,,Every click counts double. Forever.,Каждый клик считается дважды. Навсегда.
 hud.sit_cooldown,Can sit again in {n}s,,,Can sit again in {n}s,Сесть снова можно через {n} с
+workout.tap_hint,Hit the glowing spot!,,,Hit the glowing spot!,Бей по светящейся точке!
+workout.rest,"Rest! Don't tap",,,"Rest! Don't tap","Передышка! Не бей"
+workout.stunned,Ouch! Stunned,,,Ouch! Stunned,Ай! Оглушён
+workout.miss,Miss,,,Miss,Мимо
+workout.combo,Combo x{n},,,Combo x{n},Комбо x{n}
+workout.stroke_hint,Hold and drag along the dots: chin to ear,,,Hold and drag along the dots: chin to ear,Зажми и проведи по точкам: от подбородка к уху
+workout.stroke_done,Smooth!,,,Smooth!,Гладко!

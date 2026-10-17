@@ -9,6 +9,7 @@ local Menu = require(script.Parent.Menu)
 local MirrorView = require(script.Parent.MirrorView)
 local Shop = require(script.Parent.Shop)
 local Store = require(script.Parent.Store)
+local Workout = require(script.Parent.Workout)
 
 local player = Players.LocalPlayer
 
@@ -30,3 +31,4 @@ Menu.show(hudGui)
 FaceCamera.init()
 MirrorView.init()
 Guide.init()
+Workout.init()

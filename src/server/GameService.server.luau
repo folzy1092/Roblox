@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Progression = require(ReplicatedStorage.Shared.Progression)
+local MiniGames = require(ReplicatedStorage.Shared.MiniGames)
 local PlayerData = require(script.Parent.PlayerData)
 local Remotes = require(script.Parent.Remotes)
 local Tools = require(script.Parent.Tools)
@@ -60,13 +61,37 @@ end
 Remotes.Click.OnServerEvent:Connect(function(player)
 	local data = PlayerData.get(player)
 	local tool = Tools.held(player)
-	if not data or not tool or not data.items[tool.Name] or not allowClick(player) then
+	-- mini-game items only pay through finished reps
+	if not data or not tool or not data.items[tool.Name] or MiniGames.kindOf(tool.Name) or not allowClick(player) then
 		return
 	end
 	data.equipped = tool.Name
 	Progression.applyClick(data, {
 		trainerMult = Trainers.mult(player, data, ownsPass),
 		hasX2 = ownsPass(player, "X2"),
+	})
+	PlayerData.publish(player)
+end)
+
+-- One finished mini-game rep (gua sha stroke, bone tapper hit). Rate-limited per kind.
+local lastRep: { [Player]: number } = {}
+Remotes.Rep.OnServerEvent:Connect(function(player)
+	local data = PlayerData.get(player)
+	local tool = Tools.held(player)
+	local kind = tool and MiniGames.kindOf(tool.Name)
+	if not data or not tool or not kind or not data.items[tool.Name] then
+		return
+	end
+	local now = os.clock()
+	if now - (lastRep[player] or 0) < MiniGames.MinRepInterval[kind] then
+		return
+	end
+	lastRep[player] = now
+	data.equipped = tool.Name
+	Progression.applyClick(data, {
+		trainerMult = Trainers.mult(player, data, ownsPass),
+		hasX2 = ownsPass(player, "X2"),
+		factor = MiniGames.RepFactor[kind],
 	})
 	PlayerData.publish(player)
 end)
@@ -144,6 +169,7 @@ Players.PlayerRemoving:Connect(function(player)
 	PlayerData.release(player)
 	passCache[player] = nil
 	clickWindow[player] = nil
+	lastRep[player] = nil
 end)
 
 game:BindToClose(PlayerData.saveAll)

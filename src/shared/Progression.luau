@@ -13,6 +13,7 @@ export type Data = {
 export type ClickContext = {
 	trainerMult: number,
 	hasX2: boolean,
+	factor: number?, -- mini-game rep worth (1 = plain click)
 }
 
 local Progression = {}
@@ -57,7 +58,7 @@ function Progression.clickGain(data: Data, ctx: ClickContext): number
 	if not item then
 		return 0
 	end
-	local gain = item.power * (1 + Config.Mult.PerRebirth * data.rebirths) * ctx.trainerMult
+	local gain = item.power * (1 + Config.Mult.PerRebirth * data.rebirths) * ctx.trainerMult * (ctx.factor or 1)
 	if Progression.tierIndex(data.rating) <= data.rebirths then
 		gain *= Config.Mult.PassedTier
 	end
