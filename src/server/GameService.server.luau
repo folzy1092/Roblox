@@ -8,6 +8,10 @@ local Progression = require(ReplicatedStorage.Shared.Progression)
 local PlayerData = require(script.Parent.PlayerData)
 local Remotes = require(script.Parent.Remotes)
 local Tools = require(script.Parent.Tools)
+local MapBuilder = require(script.Parent.MapBuilder)
+local RankLabel = require(script.Parent.RankLabel)
+
+MapBuilder.build()
 
 local passCache: { [Player]: { [string]: boolean } } = {}
 local clickWindow: { [Player]: { start: number, count: number } } = {}
@@ -118,6 +122,7 @@ end)
 
 local function onPlayerAdded(player: Player)
 	task.spawn(cachePasses, player)
+	RankLabel.attach(player)
 	PlayerData.load(player)
 	player.CharacterAdded:Connect(function()
 		local data = PlayerData.get(player)
