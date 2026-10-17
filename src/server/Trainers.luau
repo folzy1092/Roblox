@@ -13,9 +13,10 @@ type OwnsPass = (player: Player, passName: string) -> boolean
 
 local function setActive(model: Model, active: boolean, vipBlocked: boolean?)
 	local base = model:FindFirstChild("Base") :: BasePart
+	local trim = model:FindFirstChild("Trim") :: BasePart
 	local color = model:GetAttribute("Color") :: Color3
-	base.Color = if active then color else color:Lerp(Color3.new(0, 0, 0), 0.45)
-	base.Material = if active then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	trim.Material = if active then Enum.Material.Neon else Enum.Material.SmoothPlastic
+	trim.Color = if active then color else color:Lerp(Color3.new(0, 0, 0), 0.4)
 	local sparkles = base:FindFirstChild("ActiveSparkles") :: ParticleEmitter
 	sparkles.Enabled = active
 	local label = base.Status.Label :: TextLabel
