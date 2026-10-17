@@ -9,6 +9,10 @@ local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local Trainers = {}
 
+-- seat -> who sits and since when; player -> may not sit again until
+local sessions: { [Seat]: { player: Player, since: number, model: Model } } = {}
+local cooldownUntil: { [Player]: number } = {}
+
 type OwnsPass = (player: Player, passName: string) -> boolean
 
 local function setActive(model: Model, active: boolean, vipBlocked: boolean?)
@@ -35,10 +39,35 @@ local function setActive(model: Model, active: boolean, vipBlocked: boolean?)
 end
 
 local function kick(seat: Seat)
+	local humanoid = seat.Occupant
 	local weld = seat:FindFirstChild("SeatWeld")
 	if weld then
 		weld:Destroy()
 	end
+	if humanoid then
+		humanoid.Sit = false
+		humanoid.Jump = true
+	end
+end
+
+local function timerLabel(model: Model): TextLabel
+	local status = (model:FindFirstChild("Base") :: BasePart):FindFirstChild("Status") :: BillboardGui
+	local timer = status:FindFirstChild("Timer") :: TextLabel?
+	if timer then
+		return timer
+	end
+	status.Size = UDim2.fromScale(4, 1.5)
+	local label = status:FindFirstChild("Label") :: TextLabel
+	label.Size = UDim2.fromScale(1, 0.55)
+	local t = label:Clone()
+	t.Name = "Timer"
+	t.AutoLocalize = false
+	t.Position = UDim2.fromScale(0, 0.55)
+	t.Size = UDim2.fromScale(1, 0.45)
+	t.Text = ""
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.Parent = status
+	return t
 end
 
 local function setup(model: Model, ownsPass: OwnsPass)
@@ -55,6 +84,14 @@ local function setup(model: Model, ownsPass: OwnsPass)
 	seat:GetPropertyChangedSignal("Occupant"):Connect(function()
 		local humanoid = seat.Occupant
 		local player = humanoid and Players:GetPlayerFromCharacter(humanoid.Parent)
+		sessions[seat] = nil
+		timerLabel(model).Text = ""
+		if player and (cooldownUntil[player] or 0) > os.clock() then
+			-- just got kicked for sitting too long: free the seat for others
+			kick(seat)
+			setActive(model, false)
+			return
+		end
 		if player and vip and not ownsPass(player, "Vip") then
 			kick(seat)
 			setActive(model, false, true)
@@ -68,6 +105,9 @@ local function setup(model: Model, ownsPass: OwnsPass)
 			end)
 			return
 		end
+		if player then
+			sessions[seat] = { player = player, since = os.clock(), model = model }
+		end
 		setActive(model, humanoid ~= nil)
 	end)
 
@@ -78,6 +118,37 @@ function Trainers.init(ownsPass: OwnsPass)
 	local folder = workspace:WaitForChild("Trainers")
 	for _, model in folder:GetChildren() do
 		setup(model, ownsPass)
+	end
+
+	-- seat time limit: countdown on the sign, kick when it runs out
+	task.spawn(function()
+		while true do
+			task.wait(1)
+			local now = os.clock()
+			for seat, info in sessions do
+				local left = Config.SeatMaxSeconds - (now - info.since)
+				if left <= 0 then
+					cooldownUntil[info.player] = now + Config.SeatCooldownSeconds
+					sessions[seat] = nil
+					kick(seat)
+				else
+					timerLabel(info.model).Text = string.format("%d:%02d", left // 60, left % 60)
+				end
+			end
+		end
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		cooldownUntil[player] = nil
+	end)
+end
+
+-- Stand the player up if they sit on a trainer (used on rebirth).
+function Trainers.standUp(player: Player)
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	local seat = humanoid and humanoid.SeatPart
+	if seat and seat:IsA("Seat") and seat:GetAttribute("TrainerSeat") then
+		kick(seat)
 	end
 end
 

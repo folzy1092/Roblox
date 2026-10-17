@@ -95,6 +95,7 @@ Remotes.Rebirth.OnServerEvent:Connect(function(player)
 		return
 	end
 	Progression.applyRebirth(data)
+	Trainers.standUp(player)
 	Tools.give(player, data)
 	PlayerData.publish(player)
 end)
