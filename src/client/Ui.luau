@@ -9,6 +9,13 @@ Ui.Colors = {
 	Text = Color3.new(1, 1, 1),
 }
 
+Ui.Rarity = {
+	Common = Color3.fromRGB(110, 200, 130),
+	Rare = Color3.fromRGB(80, 160, 255),
+	Epic = Color3.fromRGB(190, 100, 255),
+	Legendary = Color3.fromRGB(255, 180, 40),
+}
+
 function Ui.make(className: string, props: { [string]: any }, children: { Instance }?): any
 	local inst = Instance.new(className)
 	for key, value in props do

@@ -21,7 +21,7 @@ local lastSync = 0
 
 local function collectMirrors()
 	table.clear(mirrors)
-	for _, folderName in { "Lobby", "Trainers" } do
+	for _, folderName in { "Lobby", "Trainers", "DuelArena" } do
 		local folder = workspace:WaitForChild(folderName, 30)
 		if folder then
 			for _, d in folder:GetDescendants() do

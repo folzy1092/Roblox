@@ -32,3 +32,15 @@ trainer.sit,Sit,,,Sit,Сесть
 trainer.free,Free,,,Free,Свободно
 trainer.busy,Busy,,,Busy,Занято
 trainer.vip_only,VIP only,,,VIP only,Только VIP
+item.jawball,Jaw Ball,,,Jaw Ball,Jaw-шар
+item.guasha,Gua Sha,,,Gua Sha,Гуаша
+item.bonetapper,Bone Tapper,,,Bone Tapper,Bone Tapper
+rarity.Common,COMMON,,,COMMON,ОБЫЧНЫЙ
+rarity.Rare,RARE,,,RARE,РЕДКИЙ
+rarity.Epic,EPIC,,,EPIC,ЭПИЧЕСКИЙ
+rarity.Legendary,LEGENDARY,,,LEGENDARY,ЛЕГЕНДАРНЫЙ
+hud.duels,Duels,,,Duels,Дуэли
+hud.menu,Menu,,,Menu,Меню
+duels.title,Duel Arena,,,Duel Arena,Арена дуэлей
+duels.info,"Challenge players to a looksmaxxing race: same exercises, best accuracy wins. Matches open soon — come check out the arena!",,,"Challenge players to a looksmaxxing race: same exercises, best accuracy wins. Matches open soon — come check out the arena!","Вызывай игроков на скоростную прокачку: одинаковые упражнения, побеждает самый точный. Матчи скоро откроются — загляни на арену!"
+duels.go,Go to arena,,,Go to arena,На арену

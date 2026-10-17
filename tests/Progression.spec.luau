@@ -89,4 +89,27 @@ tests["shop buy rules"] = function()
 	eq(select(2, P.canBuy(s, 42)), "unknown")
 end
 
+tests["item ladder: each next item costs more and hits harder"] = function()
+	local C = require("../src/shared/Config")
+	local ids = {}
+	for id in C.Items do
+		table.insert(ids, id)
+	end
+	table.sort(ids, function(a, b)
+		return C.Items[a].order < C.Items[b].order
+	end)
+	eq(#ids, 5)
+	eq(ids[1], "gum")
+	eq(ids[5], "bonetapper")
+	for i = 2, #ids do
+		local prev, cur = C.Items[ids[i - 1]], C.Items[ids[i]]
+		truthy(cur.price > prev.price, `price grows at {ids[i]}`)
+		truthy(cur.power > prev.power, `power grows at {ids[i]}`)
+		truthy(cur.rarity ~= nil and cur.icon ~= nil, `{ids[i]} has rarity and icon`)
+	end
+	local d = P.defaultData()
+	d.glow = 1200
+	truthy(P.canBuy(d, "jawball"))
+end
+
 return tests

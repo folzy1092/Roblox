@@ -7,6 +7,9 @@ local Progression = require(ReplicatedStorage.Shared.Progression)
 local COLORS = {
 	gum = Color3.fromRGB(255, 120, 190),
 	mewing = Color3.fromRGB(120, 200, 255),
+	jawball = Color3.fromRGB(90, 220, 120),
+	guasha = Color3.fromRGB(190, 120, 255),
+	bonetapper = Color3.fromRGB(200, 200, 210),
 }
 
 local Tools = {}

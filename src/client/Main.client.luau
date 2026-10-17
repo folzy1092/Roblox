@@ -1,6 +1,7 @@
 -- Client entry.
 local Players = game:GetService("Players")
 
+local Duels = require(script.Parent.Duels)
 local FaceCamera = require(script.Parent.FaceCamera)
 local Hud = require(script.Parent.Hud)
 local Menu = require(script.Parent.Menu)
@@ -14,8 +15,14 @@ if player:GetAttribute("Rating") == nil then
 	player:GetAttributeChangedSignal("Rating"):Wait()
 end
 
-local toggleShop = Shop.init()
-local hudGui = Hud.init(toggleShop)
+local actions = {
+	shop = Shop.init(),
+	duels = Duels.init(),
+}
+local hudGui = Hud.init(actions)
+actions.menu = function()
+	Menu.show(hudGui)
+end
 Menu.show(hudGui)
 FaceCamera.init()
 MirrorView.init()

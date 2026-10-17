@@ -7,6 +7,8 @@ local rng = Random.new(20261017) -- fixed seed: same map every server
 
 local PLAZA_SIZE = Vector3.new(64, 4, 64)
 local TRAINER_AREA_X = 40
+local ARENA_CENTER = Vector3.new(0, 0, 84)
+local ARENA_RADIUS = 26
 
 local function part(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -185,7 +187,8 @@ local function inBuiltArea(x: number, z: number): boolean
 	local plaza = math.abs(x) < PLAZA_SIZE.X / 2 + 6 and math.abs(z) < PLAZA_SIZE.Z / 2 + 6
 	local trainers = math.abs(math.abs(x) - TRAINER_AREA_X) < 14 and math.abs(z + 2) < 20
 	local titleWalk = math.abs(x) < 20 and z < -30 and z > -58
-	return plaza or trainers or titleWalk
+	local arena = (Vector3.new(x, 0, z) - ARENA_CENTER).Magnitude < ARENA_RADIUS + 10 or (math.abs(x) < 8 and z > 30 and z < 62)
+	return plaza or trainers or titleWalk or arena
 end
 
 local function scatterPoint(minRadius: number, maxRadius: number): Vector3?
@@ -364,6 +367,120 @@ local function titleSign(parent: Instance)
 	end
 end
 
+-- Duel arena: round stage with two facing duel pads, neon ring, stands and a big sign.
+local function duelArena()
+	local folder = Instance.new("Model")
+	folder.Name = "DuelArena"
+	local c = ARENA_CENTER
+	local red = Color3.fromRGB(235, 70, 80)
+
+	part({
+		Name = "Stage",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1.2, ARENA_RADIUS * 2, ARENA_RADIUS * 2),
+		CFrame = CFrame.new(c + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(45, 35, 60),
+		Material = Enum.Material.SmoothPlastic,
+	}).Parent = folder
+	part({
+		Name = "StageRing",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1, ARENA_RADIUS * 2 + 1.5, ARENA_RADIUS * 2 + 1.5),
+		CFrame = CFrame.new(c + Vector3.new(0, 0.45, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = red,
+		Material = Enum.Material.Neon,
+	}).Parent = folder
+	part({
+		Name = "ArenaSpawn",
+		Size = Vector3.new(6, 0.2, 6),
+		Position = c + Vector3.new(0, 1.3, -(ARENA_RADIUS - 6)),
+		Transparency = 1,
+		CanCollide = false,
+	}).Parent = folder
+
+	-- two duel pads facing each other, each with its own mirror
+	for _, side in { -1, 1 } do
+		local padPos = c + Vector3.new(side * 9, 1.4, 0)
+		part({
+			Name = "DuelPad",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.4, 7, 7),
+			CFrame = CFrame.new(padPos) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = if side < 0 then Color3.fromRGB(80, 160, 255) else red,
+			Material = Enum.Material.Neon,
+		}).Parent = folder
+		local mirrorPos = padPos + Vector3.new(side * 5, 3.4, 0)
+		mirror(folder, CFrame.lookAt(mirrorPos, mirrorPos - Vector3.new(side, 0, 0)), Vector2.new(4.4, 5.6),
+			if side < 0 then Color3.fromRGB(80, 160, 255) else red)
+	end
+	local vs = part({
+		Name = "VsSign",
+		Size = Vector3.new(1, 1, 1),
+		Position = c + Vector3.new(0, 9, 0),
+		Transparency = 1,
+		CanCollide = false,
+	})
+	sign(vs, "⚔️ VS ⚔️", Color3.fromRGB(255, 220, 220))
+	vs.Parent = folder
+
+	-- neon posts around the ring
+	for i = 0, 11 do
+		local a = i / 12 * math.pi * 2
+		local pos = c + Vector3.new(math.cos(a) * (ARENA_RADIUS + 1.5), 0, math.sin(a) * (ARENA_RADIUS + 1.5))
+		part({
+			Name = "Post",
+			Size = Vector3.new(0.8, 6, 0.8),
+			Position = pos + Vector3.new(0, 3, 0),
+			Color = Color3.fromRGB(40, 35, 50),
+			Material = Enum.Material.Metal,
+		}).Parent = folder
+		part({
+			Name = "PostLight",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * 1.2,
+			Position = pos + Vector3.new(0, 6.4, 0),
+			Color = if i % 2 == 0 then red else Color3.fromRGB(80, 160, 255),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		}).Parent = folder
+	end
+
+	-- stands on the far side
+	for row = 0, 2 do
+		part({
+			Name = "Stand",
+			Size = Vector3.new(30, 1.2, 3),
+			Position = c + Vector3.new(0, 0.6 + row * 1.2, ARENA_RADIUS + 5 + row * 3),
+			Color = Color3.fromRGB(70, 60, 90):Lerp(Color3.new(1, 1, 1), row * 0.06),
+			Material = Enum.Material.SmoothPlastic,
+		}).Parent = folder
+	end
+
+	local board = part({
+		Name = "ArenaBoard",
+		Size = Vector3.new(26, 6, 1),
+		Position = c + Vector3.new(0, 14, ARENA_RADIUS + 14),
+		Color = Color3.fromRGB(30, 20, 35),
+		Material = Enum.Material.SmoothPlastic,
+	})
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.PixelsPerStud = 30
+	gui.LightInfluence = 0
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = "Duel Arena"
+	label.TextScaled = true
+	label.Font = Enum.Font.FredokaOne
+	label.TextColor3 = red
+	label.Parent = gui
+	gui.Parent = board
+	board.Parent = folder
+
+	folder.Parent = workspace
+end
+
 local function terrain()
 	local t = workspace.Terrain
 	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(520, 12, 520), Enum.Material.Grass)
@@ -371,6 +488,7 @@ local function terrain()
 	t:FillBlock(CFrame.new(0, -2, 0), PLAZA_SIZE, Enum.Material.Pavement)
 	t:FillBlock(CFrame.new(0, -2, -2), Vector3.new(TRAINER_AREA_X * 2 + 28, 4, 8), Enum.Material.Pavement)
 	t:FillBlock(CFrame.new(0, -2, -44), Vector3.new(8, 4, 24), Enum.Material.Pavement)
+	t:FillBlock(CFrame.new(0, -2, 46), Vector3.new(8, 4, 32), Enum.Material.Pavement)
 	for _, side in { -1, 1 } do
 		t:FillBlock(CFrame.new(side * TRAINER_AREA_X, -2, -2), Vector3.new(20, 4, 36), Enum.Material.Cobblestone)
 	end
@@ -487,6 +605,7 @@ function MapBuilder.build()
 	trainer(trainers, "mewing", "Mewing Trainer", true, Vector3.new(TRAINER_AREA_X, 0.3, 6))
 	trainers.Parent = workspace
 
+	duelArena()
 	decor()
 	nature()
 	lighting()

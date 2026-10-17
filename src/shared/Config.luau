@@ -15,9 +15,13 @@ Config.Tiers = {
 Config.TopRating = 2500000
 Config.MaxRebirths = 7
 
+-- rarity drives shop card colors; icon is shown on the card
 Config.Items = {
-	gum = { power = 1, price = 0, order = 1 },
-	mewing = { power = 3, price = 150, order = 2 },
+	gum = { power = 1, price = 0, order = 1, rarity = "Common", icon = "🍬" },
+	mewing = { power = 3, price = 150, order = 2, rarity = "Common", icon = "👅" },
+	jawball = { power = 8, price = 1200, order = 3, rarity = "Rare", icon = "🟢" },
+	guasha = { power = 20, price = 6000, order = 4, rarity = "Epic", icon = "💎" },
+	bonetapper = { power = 50, price = 25000, order = 5, rarity = "Legendary", icon = "🔨" },
 }
 
 Config.Mult = {

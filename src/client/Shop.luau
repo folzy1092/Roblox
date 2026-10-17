@@ -1,6 +1,7 @@
--- Shop panel: buy items for Glow, equip owned ones.
+-- Shop panel: colorful rarity cards; buy items for Glow, equip owned ones.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Strings = require(script.Parent.Strings)
@@ -19,45 +20,122 @@ local function owned(): { [string]: boolean }
 	return set
 end
 
+local function gradient(parent: Instance, from: Color3, to: Color3, rotation: number)
+	Ui.make("UIGradient", {
+		Color = ColorSequence.new(from, to),
+		Rotation = rotation,
+		Parent = parent,
+	})
+end
+
+local function card(list: Instance, id: string, item: any): TextButton
+	local color = Ui.Rarity[item.rarity] or Ui.Colors.Good
+	local frame = Ui.make("Frame", {
+		LayoutOrder = item.order,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		Parent = list,
+	}, {
+		Ui.corner(0.1),
+		Ui.make("UIStroke", { Color = color, Thickness = 3 }),
+	})
+	gradient(frame, color:Lerp(Color3.new(0, 0, 0), 0.35), Color3.fromRGB(30, 26, 45), 90)
+
+	Ui.label({
+		Size = UDim2.fromScale(1, 0.12),
+		Position = UDim2.fromScale(0, 0.04),
+		Text = Strings.get("rarity." .. item.rarity),
+		Font = Enum.Font.GothamBold,
+		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.4),
+		Parent = frame,
+	})
+	Ui.label({
+		Size = UDim2.fromScale(1, 0.3),
+		Position = UDim2.fromScale(0, 0.15),
+		Text = item.icon,
+		Font = Enum.Font.GothamBold,
+		Parent = frame,
+	})
+	Ui.label({
+		Size = UDim2.fromScale(0.92, 0.14),
+		Position = UDim2.fromScale(0.04, 0.47),
+		Text = Strings.get("item." .. id),
+		Parent = frame,
+	})
+	Ui.label({
+		Size = UDim2.fromScale(0.92, 0.1),
+		Position = UDim2.fromScale(0.04, 0.62),
+		Text = Strings.get("shop.power", { power = item.power }),
+		Font = Enum.Font.GothamMedium,
+		TextColor3 = Color3.fromRGB(220, 220, 235),
+		Parent = frame,
+	})
+	return Ui.button({
+		Size = UDim2.fromScale(0.86, 0.17),
+		Position = UDim2.fromScale(0.07, 0.78),
+		Parent = frame,
+	})
+end
+
 function Shop.init(): () -> ()
 	local gui = Ui.screen("Shop", 5)
 	local panel = Ui.make("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.45, 0.6),
-		BackgroundColor3 = Ui.Colors.Panel,
+		Size = UDim2.fromScale(0.62, 0.7),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		Visible = false,
 		Parent = gui,
-	}, { Ui.corner(0.05), Ui.make("UISizeConstraint", { MinSize = Vector2.new(320, 260) }) })
-	Ui.label({
-		Size = UDim2.fromScale(0.6, 0.12),
-		Position = UDim2.fromScale(0.05, 0.03),
-		Text = Strings.get("shop.title"),
-		TextColor3 = Ui.Colors.Accent,
-		TextXAlignment = Enum.TextXAlignment.Left,
+	}, {
+		Ui.corner(0.04),
+		Ui.make("UIStroke", { Color = Color3.fromRGB(255, 205, 70), Thickness = 3 }),
+		Ui.make("UISizeConstraint", { MinSize = Vector2.new(340, 280) }),
+	})
+	gradient(panel, Color3.fromRGB(60, 40, 110), Color3.fromRGB(25, 20, 40), 90)
+	local scale = Ui.make("UIScale", { Scale = 1, Parent = panel })
+
+	local header = Ui.make("Frame", {
+		Size = UDim2.fromScale(1, 0.14),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		Parent = panel,
+	}, { Ui.corner(0.3) })
+	gradient(header, Color3.fromRGB(255, 120, 190), Color3.fromRGB(120, 110, 255), 0)
+	Ui.label({
+		Size = UDim2.fromScale(0.4, 0.7),
+		Position = UDim2.fromScale(0.03, 0.15),
+		Text = "🛒 " .. Strings.get("shop.title"),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = header,
+	})
+	local balance = Ui.label({
+		Size = UDim2.fromScale(0.3, 0.55),
+		Position = UDim2.fromScale(0.43, 0.22),
+		TextColor3 = Color3.fromRGB(255, 240, 150),
+		Parent = header,
 	})
 	local close = Ui.button({
-		Size = UDim2.fromScale(0.25, 0.1),
-		Position = UDim2.fromScale(0.7, 0.04),
-		Text = Strings.get("common.close"),
-		BackgroundColor3 = Ui.Colors.Muted,
-		Parent = panel,
+		Size = UDim2.fromScale(0.08, 0.7),
+		Position = UDim2.fromScale(0.9, 0.15),
+		Text = "✕",
+		BackgroundColor3 = Color3.fromRGB(220, 70, 90),
+		Parent = header,
 	})
-	close.Activated:Connect(function()
-		panel.Visible = false
-	end)
+	Ui.make("UIAspectRatioConstraint", { AspectRatio = 1, Parent = close })
 
 	local list = Ui.make("ScrollingFrame", {
-		Position = UDim2.fromScale(0.05, 0.18),
-		Size = UDim2.fromScale(0.9, 0.78),
+		Position = UDim2.fromScale(0.03, 0.18),
+		Size = UDim2.fromScale(0.94, 0.79),
 		BackgroundTransparency = 1,
 		ScrollBarThickness = 6,
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		CanvasSize = UDim2.new(),
 		Parent = panel,
 	}, {
-		Ui.make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }),
+		Ui.make("UIGridLayout", {
+			CellSize = UDim2.fromScale(0.23, 0.9),
+			CellPadding = UDim2.fromScale(0.02, 0.04),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+		Ui.make("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 4) }),
 	})
 
 	local ids = {}
@@ -68,36 +146,9 @@ function Shop.init(): () -> ()
 		return Config.Items[a].order < Config.Items[b].order
 	end)
 
-	local rows = {}
+	local buttons = {}
 	for _, id in ids do
-		local item = Config.Items[id]
-		local row = Ui.make("Frame", {
-			LayoutOrder = item.order,
-			Size = UDim2.new(1, -10, 0, 64),
-			BackgroundColor3 = Color3.fromRGB(45, 42, 62),
-			Parent = list,
-		}, { Ui.corner(0.15) })
-		Ui.label({
-			Size = UDim2.fromScale(0.5, 0.5),
-			Position = UDim2.fromScale(0.04, 0.05),
-			Text = Strings.get("item." .. id),
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = row,
-		})
-		Ui.label({
-			Size = UDim2.fromScale(0.5, 0.35),
-			Position = UDim2.fromScale(0.04, 0.58),
-			Text = Strings.get("shop.power", { power = item.power }),
-			Font = Enum.Font.GothamMedium,
-			TextColor3 = Color3.fromRGB(200, 200, 220),
-			TextXAlignment = Enum.TextXAlignment.Left,
-			Parent = row,
-		})
-		local button = Ui.button({
-			Size = UDim2.fromScale(0.4, 0.7),
-			Position = UDim2.fromScale(0.57, 0.15),
-			Parent = row,
-		})
+		local button = card(list, id, Config.Items[id])
 		button.Activated:Connect(function()
 			if owned()[id] then
 				remotes.Equip:FireServer(id)
@@ -105,14 +156,15 @@ function Shop.init(): () -> ()
 				remotes.Buy:FireServer(id)
 			end
 		end)
-		rows[id] = button
+		buttons[id] = button
 	end
 
 	local function update()
 		local have = owned()
 		local glow = player:GetAttribute("Glow") or 0
 		local equipped = player:GetAttribute("Equipped")
-		for id, button in rows do
+		balance.Text = "✨ " .. Strings.get("hud.glow", { n = Strings.num(glow) })
+		for id, button in buttons do
 			local item = Config.Items[id]
 			if equipped == id and have[id] then
 				button.Text = Strings.get("shop.equipped")
@@ -131,9 +183,22 @@ function Shop.init(): () -> ()
 	end
 	update()
 
+	local function setOpen(open: boolean)
+		if open then
+			panel.Visible = true
+			scale.Scale = 0.85
+			TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Back), { Scale = 1 }):Play()
+		else
+			panel.Visible = false
+		end
+	end
+	close.Activated:Connect(function()
+		setOpen(false)
+	end)
+
 	gui.Parent = player:WaitForChild("PlayerGui")
 	return function()
-		panel.Visible = not panel.Visible
+		setOpen(not panel.Visible)
 	end
 end
 

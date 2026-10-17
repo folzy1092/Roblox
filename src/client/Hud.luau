@@ -73,7 +73,7 @@ function Hud.confirmRebirth(gui: ScreenGui)
 	end)
 end
 
-function Hud.init(onShop: () -> ()): ScreenGui
+function Hud.init(actions: { [string]: () -> () }): ScreenGui
 	local gui = Ui.screen("Hud", 1)
 
 	local panel = Ui.make("Frame", {
@@ -116,16 +116,45 @@ function Hud.init(onShop: () -> ()): ScreenGui
 		Parent = bar,
 	})
 
-	local shopButton = Ui.button({
+	-- left side bar: Shop / Duels / Menu
+	local side = Ui.make("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0.015, 0.5),
-		Size = UDim2.fromScale(0.11, 0.07),
-		Text = Strings.get("hud.shop"),
-		BackgroundColor3 = Color3.fromRGB(120, 110, 255),
+		Position = UDim2.fromScale(0.012, 0.5),
+		Size = UDim2.fromScale(0.12, 0.3),
+		BackgroundTransparency = 1,
 		Parent = gui,
-	}, nil)
-	Ui.make("UISizeConstraint", { MinSize = Vector2.new(90, 40), Parent = shopButton })
-	shopButton.Activated:Connect(onShop)
+	}, {
+		Ui.make("UIListLayout", { Padding = UDim.new(0.04, 0), SortOrder = Enum.SortOrder.LayoutOrder }),
+		Ui.make("UISizeConstraint", { MinSize = Vector2.new(110, 150) }),
+	})
+	for order, entry in {
+		{ "🛒", "hud.shop", Color3.fromRGB(255, 120, 190), Color3.fromRGB(140, 90, 255), "shop" },
+		{ "⚔️", "hud.duels", Color3.fromRGB(255, 90, 80), Color3.fromRGB(170, 30, 70), "duels" },
+		{ "📋", "hud.menu", Color3.fromRGB(90, 200, 255), Color3.fromRGB(60, 90, 200), "menu" },
+	} do
+		local button = Ui.button({
+			LayoutOrder = order,
+			Size = UDim2.fromScale(1, 0.3),
+			Text = entry[1] .. " " .. Strings.get(entry[2]),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			Parent = side,
+		})
+		Ui.make("UIGradient", { Color = ColorSequence.new(entry[3], entry[4]), Rotation = 90, Parent = button })
+		Ui.make("UIStroke", {
+			Color = Color3.new(1, 1, 1),
+			Thickness = 2,
+			Transparency = 0.4,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			Parent = button,
+		})
+		local action = entry[5]
+		button.Activated:Connect(function()
+			local fn = actions[action]
+			if fn then
+				fn()
+			end
+		end)
+	end
 
 	local rebirthButton = Ui.button({
 		AnchorPoint = Vector2.new(1, 0.5),
