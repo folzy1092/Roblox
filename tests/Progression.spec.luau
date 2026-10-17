@@ -105,7 +105,7 @@ tests["item ladder: each next item costs more and hits harder"] = function()
 		local prev, cur = C.Items[ids[i - 1]], C.Items[ids[i]]
 		truthy(cur.price > prev.price, `price grows at {ids[i]}`)
 		truthy(cur.power > prev.power, `power grows at {ids[i]}`)
-		truthy(cur.rarity ~= nil and cur.icon ~= nil, `{ids[i]} has rarity and icon`)
+		truthy(cur.rarity ~= nil, `{ids[i]} has rarity`)
 	end
 	local d = P.defaultData()
 	d.glow = 1200

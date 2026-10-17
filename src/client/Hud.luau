@@ -128,26 +128,44 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 		Ui.make("UISizeConstraint", { MinSize = Vector2.new(110, 150) }),
 	})
 	for order, entry in {
-		{ "🛒", "hud.shop", Color3.fromRGB(255, 120, 190), Color3.fromRGB(140, 90, 255), "shop" },
-		{ "⚔️", "hud.duels", Color3.fromRGB(255, 90, 80), Color3.fromRGB(170, 30, 70), "duels" },
-		{ "📋", "hud.menu", Color3.fromRGB(90, 200, 255), Color3.fromRGB(60, 90, 200), "menu" },
+		{ "hud.shop", Color3.fromRGB(255, 120, 190), Color3.fromRGB(140, 90, 255), "shop" },
+		{ "hud.duels", Color3.fromRGB(255, 90, 80), Color3.fromRGB(170, 30, 70), "duels" },
+		{ "hud.menu", Color3.fromRGB(90, 200, 255), Color3.fromRGB(60, 90, 200), "menu" },
 	} do
-		local button = Ui.button({
+		-- gradient lives on the button background only; text is a child label so it stays white
+		local button = Ui.make("TextButton", {
 			LayoutOrder = order,
 			Size = UDim2.fromScale(1, 0.3),
-			Text = entry[1] .. " " .. Strings.get(entry[2]),
+			Text = "",
+			AutoButtonColor = true,
 			BackgroundColor3 = Color3.new(1, 1, 1),
 			Parent = side,
+		}, {
+			Ui.corner(0.25),
+			Ui.make("UIGradient", { Color = ColorSequence.new(entry[2], entry[3]), Rotation = 90 }),
+			Ui.make("UIStroke", {
+				Color = Color3.new(1, 1, 1),
+				Thickness = 2,
+				Transparency = 0.4,
+				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+			}),
 		})
-		Ui.make("UIGradient", { Color = ColorSequence.new(entry[3], entry[4]), Rotation = 90, Parent = button })
-		Ui.make("UIStroke", {
-			Color = Color3.new(1, 1, 1),
-			Thickness = 2,
-			Transparency = 0.4,
-			ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		Ui.label({
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.86, 0.6),
+			Text = Strings.get(entry[1]),
+			Font = Enum.Font.FredokaOne,
+			TextColor3 = Color3.new(1, 1, 1),
 			Parent = button,
+		}, nil)
+		Ui.make("UIStroke", {
+			Color = entry[3]:Lerp(Color3.new(0, 0, 0), 0.5),
+			Thickness = 2,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+			Parent = button:FindFirstChildOfClass("TextLabel"),
 		})
-		local action = entry[5]
+		local action = entry[4]
 		button.Activated:Connect(function()
 			local fn = actions[action]
 			if fn then

@@ -48,12 +48,27 @@ local function card(list: Instance, id: string, item: any): TextButton
 		TextColor3 = color:Lerp(Color3.new(1, 1, 1), 0.4),
 		Parent = frame,
 	})
-	Ui.label({
-		Size = UDim2.fromScale(1, 0.3),
-		Position = UDim2.fromScale(0, 0.15),
-		Text = item.icon,
-		Font = Enum.Font.GothamBold,
+	local orb = Ui.make("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.17),
+		Size = UDim2.fromScale(0.5, 0.27),
+		BackgroundColor3 = Color3.new(1, 1, 1),
 		Parent = frame,
+	}, {
+		Ui.make("UIAspectRatioConstraint", { AspectRatio = 1 }),
+		Ui.corner(0.5),
+		Ui.make("UIGradient", {
+			Color = ColorSequence.new(color:Lerp(Color3.new(1, 1, 1), 0.5), color:Lerp(Color3.new(0, 0, 0), 0.3)),
+			Rotation = 60,
+		}),
+		Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 0.5 }),
+	})
+	Ui.label({
+		Size = UDim2.fromScale(1, 1),
+		Text = string.upper(string.sub(Strings.get("item." .. id), 1, 1)),
+		TextColor3 = Color3.new(1, 1, 1),
+		TextStrokeTransparency = 0.5,
+		Parent = orb,
 	})
 	Ui.label({
 		Size = UDim2.fromScale(0.92, 0.14),
@@ -102,7 +117,7 @@ function Shop.init(): () -> ()
 	Ui.label({
 		Size = UDim2.fromScale(0.4, 0.7),
 		Position = UDim2.fromScale(0.03, 0.15),
-		Text = "🛒 " .. Strings.get("shop.title"),
+		Text = Strings.get("shop.title"),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = header,
 	})
@@ -163,7 +178,7 @@ function Shop.init(): () -> ()
 		local have = owned()
 		local glow = player:GetAttribute("Glow") or 0
 		local equipped = player:GetAttribute("Equipped")
-		balance.Text = "✨ " .. Strings.get("hud.glow", { n = Strings.num(glow) })
+		balance.Text = Strings.get("hud.glow", { n = Strings.num(glow) })
 		for id, button in buttons do
 			local item = Config.Items[id]
 			if equipped == id and have[id] then

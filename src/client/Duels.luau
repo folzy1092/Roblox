@@ -32,7 +32,7 @@ function Duels.init(): () -> ()
 	Ui.label({
 		Size = UDim2.fromScale(0.9, 0.16),
 		Position = UDim2.fromScale(0.05, 0.05),
-		Text = "⚔️ " .. Strings.get("duels.title"),
+		Text = Strings.get("duels.title"),
 		TextColor3 = Color3.fromRGB(255, 200, 200),
 		Parent = panel,
 	})

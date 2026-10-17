@@ -24,7 +24,7 @@ end
 local function sign(parent: Instance, text: string, color: Color3)
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromScale(8, 1.5)
-	gui.StudsOffset = Vector3.new(0, 7.5, 0)
+	gui.StudsOffset = Vector3.new(0, 10, 0)
 	gui.MaxDistance = 80
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -54,8 +54,8 @@ local function mirror(parent: Instance, cframe: CFrame, size: Vector2, glow: Col
 		Size = Vector3.new(size.X, size.Y, 0.2),
 		CFrame = cframe,
 		Color = Color3.fromRGB(140, 160, 185),
-		Material = Enum.Material.Glass,
-		Reflectance = 0.35,
+		Material = Enum.Material.SmoothPlastic, -- SurfaceGui reflection is not drawn on Glass
+		Reflectance = 0.2,
 		CanQuery = false,
 	})
 	local light = Instance.new("SurfaceLight")
@@ -165,7 +165,7 @@ local function trainer(folder: Folder, itemId: string, title: string, vip: boole
 	local status = Instance.new("BillboardGui")
 	status.Name = "Status"
 	status.Size = UDim2.fromScale(4, 0.8)
-	status.StudsOffset = Vector3.new(0, 6.4, 0)
+	status.StudsOffset = Vector3.new(0, 8.6, 0)
 	status.MaxDistance = 60
 	local statusLabel = Instance.new("TextLabel")
 	statusLabel.Name = "Label"
@@ -420,7 +420,7 @@ local function duelArena()
 		Transparency = 1,
 		CanCollide = false,
 	})
-	sign(vs, "⚔️ VS ⚔️", Color3.fromRGB(255, 220, 220))
+	sign(vs, "VS", Color3.fromRGB(255, 220, 220))
 	vs.Parent = folder
 
 	-- neon posts around the ring
@@ -566,6 +566,42 @@ local function decor()
 	folder.Parent = workspace
 end
 
+-- Terrain surface can render a bit above its nominal y=0. Measure where it really is
+-- and shift everything we built by that amount, so nothing sinks into the ground.
+local function snapToGround()
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace.Terrain }
+	local heights = {}
+	for _, x in { 0, -TRAINER_AREA_X, TRAINER_AREA_X } do
+		local hit = workspace:Raycast(Vector3.new(x, 60, -2), Vector3.new(0, -120, 0), params)
+		if hit then
+			table.insert(heights, hit.Position.Y)
+		end
+	end
+	if #heights == 0 then
+		return
+	end
+	local ground = math.max(table.unpack(heights))
+	if math.abs(ground) < 0.05 then
+		return
+	end
+	local offset = Vector3.new(0, ground, 0)
+	local roots = { workspace:FindFirstChildOfClass("SpawnLocation") }
+	for _, name in { "Lobby", "Trainers", "DuelArena", "Decor", "Nature" } do
+		table.insert(roots, workspace:FindFirstChild(name))
+	end
+	for _, root in roots do
+		local list = root:GetDescendants()
+		table.insert(list, root)
+		for _, d in list do
+			if d:IsA("BasePart") then
+				d.CFrame += offset
+			end
+		end
+	end
+end
+
 function MapBuilder.build()
 	if workspace:FindFirstChild("Trainers") then
 		return
@@ -608,6 +644,7 @@ function MapBuilder.build()
 	duelArena()
 	decor()
 	nature()
+	snapToGround()
 	lighting()
 end
 

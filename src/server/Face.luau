@@ -18,15 +18,20 @@ type Parts = {
 	jaw: Part,
 }
 
-local function skinColor(character: Model, head: BasePart): Color3
-	local bodyColors = character:FindFirstChildOfClass("BodyColors")
-	return if bodyColors then bodyColors.HeadColor3 else head.Color
+-- Use the rendered head color so sculpt parts blend in (no pale patches).
+local function skinColor(_character: Model, head: BasePart): Color3
+	return head.Color
 end
 
-local function sculptPart(name: string, shape: Enum.PartType, head: BasePart, color: Color3): Part
+-- Ellipsoid (SpecialMesh sphere fills the part box) or plain block.
+local function sculptPart(name: string, round: boolean, head: BasePart, color: Color3): Part
 	local part = Instance.new("Part")
 	part.Name = name
-	part.Shape = shape
+	if round then
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = part
+	end
 	part.Color = color
 	part.Material = Enum.Material.SmoothPlastic
 	part.CanCollide = false
@@ -51,16 +56,18 @@ local function apply(parts: Parts, rating: number, instant: boolean)
 	local s = Looks.shape(rating)
 	local h = parts.head.Size
 
-	local cheekSize = h.X * 0.5 * s.fat
-	local chinSize = h.X * 0.6 * s.fat
-	local jawWidth = h.X * (0.55 + 0.4 * s.jaw)
-	local jawHeight = h.Y * 0.28 * s.jaw
+	-- Sub-3: puffy cheeks sunk half into the head, soft double chin, no jawline.
+	local f = s.fat
+	local cheek = Vector3.new(h.X * 0.34, h.Y * 0.42, h.Z * 0.5) * (0.35 + 0.65 * f)
+	local chin = Vector3.new(h.X * 0.62, h.Y * 0.26, h.Z * 0.5) * (0.3 + 0.7 * f)
+	local jawWidth = h.X * (0.6 + 0.35 * s.jaw)
+	local jawHeight = h.Y * 0.22 * s.jaw
 
 	local targets = {
-		{ parts.cheekL, Vector3.new(cheekSize, cheekSize, cheekSize), CFrame.new(-h.X * 0.38, -h.Y * 0.12, -h.Z * 0.18), s.fat },
-		{ parts.cheekR, Vector3.new(cheekSize, cheekSize, cheekSize), CFrame.new(h.X * 0.38, -h.Y * 0.12, -h.Z * 0.18), s.fat },
-		{ parts.chin, Vector3.new(chinSize, chinSize * 0.55, chinSize * 0.8), CFrame.new(0, -h.Y * 0.48, -h.Z * 0.12), s.fat },
-		{ parts.jaw, Vector3.new(jawWidth, jawHeight, h.Z * 0.75), CFrame.new(0, -h.Y * 0.42 + jawHeight * 0.1, -h.Z * 0.04), s.jaw },
+		{ parts.cheekL, cheek, CFrame.new(-h.X * 0.31, -h.Y * 0.16, -h.Z * 0.16), f },
+		{ parts.cheekR, cheek, CFrame.new(h.X * 0.31, -h.Y * 0.16, -h.Z * 0.16), f },
+		{ parts.chin, chin, CFrame.new(0, -h.Y * 0.44, -h.Z * 0.1), f },
+		{ parts.jaw, Vector3.new(jawWidth, jawHeight, h.Z * 0.7), CFrame.new(0, -h.Y * 0.4, -h.Z * 0.04), s.jaw },
 	}
 	for _, target in targets do
 		local part, size, offset, amount = target[1], target[2], target[3], target[4]
@@ -98,10 +105,10 @@ function Face.attach(player: Player)
 		local color = skinColor(character, head)
 		current = {
 			head = head,
-			cheekL = sculptPart("CheekL", Enum.PartType.Ball, head, color),
-			cheekR = sculptPart("CheekR", Enum.PartType.Ball, head, color),
-			chin = sculptPart("DoubleChin", Enum.PartType.Ball, head, color),
-			jaw = sculptPart("Jaw", Enum.PartType.Block, head, color),
+			cheekL = sculptPart("CheekL", true, head, color),
+			cheekR = sculptPart("CheekR", true, head, color),
+			chin = sculptPart("DoubleChin", true, head, color),
+			jaw = sculptPart("Jaw", false, head, color),
 		}
 		apply(current, player:GetAttribute("Rating") or 0, true)
 	end
