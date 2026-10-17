@@ -44,3 +44,10 @@ hud.menu,Menu,,,Menu,Меню
 duels.title,Duel Arena,,,Duel Arena,Арена дуэлей
 duels.info,"Challenge players to a looksmaxxing race: same exercises, best accuracy wins. Matches open soon — come check out the arena!",,,"Challenge players to a looksmaxxing race: same exercises, best accuracy wins. Matches open soon — come check out the arena!","Вызывай игроков на скоростную прокачку: одинаковые упражнения, побеждает самый точный. Матчи скоро откроются — загляни на арену!"
 duels.go,Go to arena,,,Go to arena,На арену
+hud.set_timer,Set: {t},,,Set: {t},Подход: {t}
+trainer.jawball,Jaw Ball Trainer,,,Jaw Ball Trainer,Тренажёр Jaw-шара
+trainer.jawball_vip,VIP Jaw Ball Trainer,,,VIP Jaw Ball Trainer,VIP тренажёр Jaw-шара
+trainer.guasha,Gua Sha Trainer,,,Gua Sha Trainer,Тренажёр гуаши
+trainer.guasha_vip,VIP Gua Sha Trainer,,,VIP Gua Sha Trainer,VIP тренажёр гуаши
+trainer.bonetapper,Bone Tapper Trainer,,,Bone Tapper Trainer,Тренажёр Bone Tapper
+trainer.bonetapper_vip,VIP Bone Tapper Trainer,,,VIP Bone Tapper Trainer,VIP тренажёр Bone Tapper

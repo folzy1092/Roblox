@@ -69,11 +69,10 @@ function Duels.init(): () -> ()
 
 	go.Activated:Connect(function()
 		setOpen(false)
-		local arena = workspace:FindFirstChild("DuelArena")
-		local spawnPart = arena and arena:FindFirstChild("ArenaSpawn")
+		local target = workspace:GetAttribute("ArenaSpawn")
 		local character = player.Character
-		if spawnPart and character then
-			character:PivotTo(spawnPart.CFrame + Vector3.new(0, 4, 0))
+		if typeof(target) == "Vector3" and character then
+			character:PivotTo(CFrame.new(target))
 		end
 	end)
 	close.Activated:Connect(function()

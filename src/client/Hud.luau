@@ -200,6 +200,34 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 		Parent = gui,
 	})
 
+	-- seat countdown: time left in the current training set
+	local setTimer = Ui.label({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.11),
+		Size = UDim2.fromScale(0.3, 0.06),
+		BackgroundColor3 = Color3.fromRGB(28, 26, 40),
+		BackgroundTransparency = 0.2,
+		TextColor3 = Ui.Colors.Accent,
+		Visible = false,
+		Parent = gui,
+	})
+	Ui.corner(0.3).Parent = setTimer
+	Ui.make("UISizeConstraint", { MinSize = Vector2.new(180, 36), Parent = setTimer })
+	task.spawn(function()
+		while true do
+			local endsAt = player:GetAttribute("SeatEndsAt")
+			if typeof(endsAt) == "number" then
+				local left = math.max(0, math.ceil(endsAt - workspace:GetServerTimeNow()))
+				setTimer.Text = Strings.get("hud.set_timer", { t = string.format("%d:%02d", left // 60, left % 60) })
+				setTimer.TextColor3 = if left <= 10 then Color3.fromRGB(255, 110, 110) else Ui.Colors.Accent
+				setTimer.Visible = true
+			else
+				setTimer.Visible = false
+			end
+			task.wait(0.25)
+		end
+	end)
+
 	local function update()
 		local rating = attr("Rating", 0)
 		local rebirths = attr("Rebirths", 0)

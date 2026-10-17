@@ -1,4 +1,5 @@
 -- Generates the lobby: grass terrain, plaza, mirrors, trainer seats, nature and decor.
+local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
 
 local MapBuilder = {}
@@ -9,6 +10,24 @@ local PLAZA_SIZE = Vector3.new(64, 4, 64)
 local TRAINER_AREA_X = 40
 local ARENA_CENTER = Vector3.new(0, 0, 84)
 local ARENA_RADIUS = 26
+local WORLD_RADIUS = 125 -- invisible wall; cliffs start right behind it
+local POND = Vector3.new(-82, 0, 58)
+
+-- Every trainer seat on the map: item, VIP?, position (x, z).
+local TRAINER_SPOTS = {
+	{ "gum", false, -40, -14 }, { "gum", false, -40, -2 }, { "gum", true, -40, 10 },
+	{ "mewing", false, 40, -14 }, { "mewing", false, 40, -2 }, { "mewing", true, 40, 10 },
+	{ "jawball", false, -26, 46 }, { "jawball", true, -38, 46 },
+	{ "guasha", false, 26, 46 }, { "guasha", true, 38, 46 },
+	{ "bonetapper", false, -32, -46 }, { "bonetapper", true, 32, -46 },
+}
+local TRAINER_TITLES = {
+	gum = "Gum Trainer",
+	mewing = "Mewing Trainer",
+	jawball = "Jaw Ball Trainer",
+	guasha = "Gua Sha Trainer",
+	bonetapper = "Bone Tapper Trainer",
+}
 
 local function part(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -65,6 +84,7 @@ local function mirror(parent: Instance, cframe: CFrame, size: Vector2, glow: Col
 	light.Angle = 70
 	light.Color = glow
 	light.Parent = surface
+	CollectionService:AddTag(surface, "Mirror") -- client finds mirrors by tag (works with streaming)
 	surface.Parent = parent
 
 	-- thin soft light strips on the frame edges
@@ -185,10 +205,18 @@ end
 
 local function inBuiltArea(x: number, z: number): boolean
 	local plaza = math.abs(x) < PLAZA_SIZE.X / 2 + 6 and math.abs(z) < PLAZA_SIZE.Z / 2 + 6
-	local trainers = math.abs(math.abs(x) - TRAINER_AREA_X) < 14 and math.abs(z + 2) < 20
 	local titleWalk = math.abs(x) < 20 and z < -30 and z > -58
 	local arena = (Vector3.new(x, 0, z) - ARENA_CENTER).Magnitude < ARENA_RADIUS + 10 or (math.abs(x) < 8 and z > 30 and z < 62)
-	return plaza or trainers or titleWalk or arena
+	local pond = (Vector3.new(x, 0, z) - POND).Magnitude < 20
+	if plaza or titleWalk or arena or pond then
+		return true
+	end
+	for _, spot in TRAINER_SPOTS do
+		if math.abs(x - spot[3]) < 11 and math.abs(z - spot[4]) < 11 then
+			return true
+		end
+	end
+	return false
 end
 
 local function scatterPoint(minRadius: number, maxRadius: number): Vector3?
@@ -481,21 +509,69 @@ local function duelArena()
 	folder.Parent = workspace
 end
 
+local function cliffs(t: Terrain)
+	local cliffRng = Random.new(77)
+	-- inner ring of rocky hills right behind the wall, outer ring of bigger peaks
+	for _, ring in { { WORLD_RADIUS + 22, 18, 30, 4 }, { WORLD_RADIUS + 55, 30, 48, 6 } } do
+		local radius, minR, maxR, step = ring[1], ring[2], ring[3], ring[4]
+		for deg = 0, 359, step do
+			local a = math.rad(deg + cliffRng:NextNumber(-2, 2))
+			local r = radius + cliffRng:NextNumber(-6, 6)
+			local size = cliffRng:NextNumber(minR, maxR)
+			local center = Vector3.new(math.cos(a) * r, cliffRng:NextNumber(-size * 0.35, size * 0.15), math.sin(a) * r)
+			t:FillBall(center, size, if cliffRng:NextNumber() < 0.7 then Enum.Material.Rock else Enum.Material.Slate)
+			-- grassy caps on some peaks
+			if cliffRng:NextNumber() < 0.5 then
+				t:FillBall(center + Vector3.new(0, size * 0.75, 0), size * 0.35, Enum.Material.LeafyGrass)
+			end
+		end
+	end
+end
+
+local function pond(t: Terrain)
+	t:FillCylinder(CFrame.new(POND + Vector3.new(0, -1, 0)), 4, 17, Enum.Material.Sand)
+	t:FillCylinder(CFrame.new(POND + Vector3.new(0, 0, 0)), 6, 13, Enum.Material.Air)
+	t:FillCylinder(CFrame.new(POND + Vector3.new(0, -3.5, 0)), 3, 13, Enum.Material.Water)
+end
+
 local function terrain()
 	local t = workspace.Terrain
-	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(520, 12, 520), Enum.Material.Grass)
-	-- plaza, paths to trainer areas and to the title sign
+	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(400, 12, 400), Enum.Material.Grass)
+	-- plaza, paths to trainer areas, title sign and arena
 	t:FillBlock(CFrame.new(0, -2, 0), PLAZA_SIZE, Enum.Material.Pavement)
 	t:FillBlock(CFrame.new(0, -2, -2), Vector3.new(TRAINER_AREA_X * 2 + 28, 4, 8), Enum.Material.Pavement)
 	t:FillBlock(CFrame.new(0, -2, -44), Vector3.new(8, 4, 24), Enum.Material.Pavement)
 	t:FillBlock(CFrame.new(0, -2, 46), Vector3.new(8, 4, 32), Enum.Material.Pavement)
-	for _, side in { -1, 1 } do
-		t:FillBlock(CFrame.new(side * TRAINER_AREA_X, -2, -2), Vector3.new(20, 4, 36), Enum.Material.Cobblestone)
+	for _, spot in TRAINER_SPOTS do
+		t:FillBlock(CFrame.new(spot[3], -2, spot[4]), Vector3.new(14, 4, 14), Enum.Material.Cobblestone)
 	end
+	pond(t)
+	cliffs(t)
 	pcall(function()
 		(t :: any).Decoration = true -- animated grass blades
 	end)
 	t.WaterWaveSize = 0.1
+	t.WaterColor = Color3.fromRGB(60, 140, 160)
+end
+
+-- Invisible ring wall so players can't walk out to the cliffs or the map edge.
+local function walls()
+	local folder = Instance.new("Folder")
+	folder.Name = "Walls"
+	local count = 36
+	for i = 0, count - 1 do
+		local a = i / count * math.pi * 2
+		local pos = Vector3.new(math.cos(a) * WORLD_RADIUS, 100, math.sin(a) * WORLD_RADIUS)
+		part({
+			Name = "Wall",
+			Size = Vector3.new(2 * math.pi * WORLD_RADIUS / count + 2, 220, 2),
+			CFrame = CFrame.lookAt(pos, Vector3.new(0, 100, 0)),
+			Transparency = 1,
+			CanQuery = false,
+			CastShadow = false,
+		}).Parent = folder
+	end
+	folder.Parent = workspace
 end
 
 local function lighting()
@@ -503,7 +579,7 @@ local function lighting()
 	Lighting.Brightness = 2
 	Lighting.OutdoorAmbient = Color3.fromRGB(140, 130, 150)
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
-	atmosphere.Density = 0.28
+	atmosphere.Density = 0.36
 	atmosphere.Color = Color3.fromRGB(255, 215, 200)
 	atmosphere.Decay = Color3.fromRGB(130, 110, 170)
 	atmosphere.Glare = 0.3
@@ -523,26 +599,33 @@ end
 local function nature()
 	local folder = Instance.new("Folder")
 	folder.Name = "Nature"
+	-- dense forest belt along the wall hides where the world ends
+	for _ = 1, 70 do
+		local p = scatterPoint(WORLD_RADIUS - 22, WORLD_RADIUS + 6)
+		if p then
+			tree(folder, p, rng:NextNumber(1.3, 2))
+		end
+	end
 	for _ = 1, 55 do
-		local p = scatterPoint(60, 230)
+		local p = scatterPoint(60, WORLD_RADIUS - 4)
 		if p then
 			tree(folder, p, rng:NextNumber(0.9, 1.6))
 		end
 	end
 	for _ = 1, 70 do
-		local p = scatterPoint(36, 200)
+		local p = scatterPoint(36, WORLD_RADIUS - 4)
 		if p then
 			bush(folder, p)
 		end
 	end
 	for _ = 1, 25 do
-		local p = scatterPoint(40, 220)
+		local p = scatterPoint(40, WORLD_RADIUS - 2)
 		if p then
 			rock(folder, p)
 		end
 	end
 	for _ = 1, 60 do
-		local p = scatterPoint(36, 160)
+		local p = scatterPoint(36, WORLD_RADIUS - 6)
 		if p then
 			flowerPatch(folder, p)
 		end
@@ -635,16 +718,18 @@ function MapBuilder.build()
 
 	local trainers = Instance.new("Folder")
 	trainers.Name = "Trainers"
-	trainer(trainers, "gum", "Gum Trainer", false, Vector3.new(-TRAINER_AREA_X, 0.3, -10))
-	trainer(trainers, "gum", "Gum Trainer", true, Vector3.new(-TRAINER_AREA_X, 0.3, 6))
-	trainer(trainers, "mewing", "Mewing Trainer", false, Vector3.new(TRAINER_AREA_X, 0.3, -10))
-	trainer(trainers, "mewing", "Mewing Trainer", true, Vector3.new(TRAINER_AREA_X, 0.3, 6))
+	for _, spot in TRAINER_SPOTS do
+		trainer(trainers, spot[1], TRAINER_TITLES[spot[1]], spot[2], Vector3.new(spot[3], 0.3, spot[4]))
+	end
 	trainers.Parent = workspace
 
 	duelArena()
+	walls()
 	decor()
 	nature()
 	snapToGround()
+	-- clients may not have the arena streamed in, so publish the teleport point
+	workspace:SetAttribute("ArenaSpawn", workspace.DuelArena.ArenaSpawn.Position + Vector3.new(0, 4, 0))
 	lighting()
 end
 

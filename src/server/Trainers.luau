@@ -50,6 +50,25 @@ local function kick(seat: Seat)
 	end
 end
 
+local THROW_DISTANCE = 15
+
+-- After a timeout, land the player ~15 studs from the seat, on the side facing the spawn.
+local function throwAway(player: Player, seat: Seat)
+	task.delay(0.15, function()
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not root then
+			return
+		end
+		local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
+		local toward = (if spawn then spawn.Position else Vector3.zero) - seat.Position
+		toward = Vector3.new(toward.X, 0, toward.Z)
+		local dir = if toward.Magnitude > 0.1 then toward.Unit else Vector3.zAxis
+		local landing = seat.Position + dir * THROW_DISTANCE + Vector3.new(0, 3, 0)
+		character:PivotTo(CFrame.lookAt(landing, landing + dir))
+	end)
+end
+
 local function timerLabel(model: Model): TextLabel
 	local status = (model:FindFirstChild("Base") :: BasePart):FindFirstChild("Status") :: BillboardGui
 	local timer = status:FindFirstChild("Timer") :: TextLabel?
@@ -84,6 +103,10 @@ local function setup(model: Model, ownsPass: OwnsPass)
 	seat:GetPropertyChangedSignal("Occupant"):Connect(function()
 		local humanoid = seat.Occupant
 		local player = humanoid and Players:GetPlayerFromCharacter(humanoid.Parent)
+		local previous = sessions[seat]
+		if previous then
+			previous.player:SetAttribute("SeatEndsAt", nil)
+		end
 		sessions[seat] = nil
 		timerLabel(model).Text = ""
 		if player and (cooldownUntil[player] or 0) > os.clock() then
@@ -107,6 +130,7 @@ local function setup(model: Model, ownsPass: OwnsPass)
 		end
 		if player then
 			sessions[seat] = { player = player, since = os.clock(), model = model }
+			player:SetAttribute("SeatEndsAt", workspace:GetServerTimeNow() + Config.SeatMaxSeconds)
 		end
 		setActive(model, humanoid ~= nil)
 	end)
@@ -130,7 +154,9 @@ function Trainers.init(ownsPass: OwnsPass)
 				if left <= 0 then
 					cooldownUntil[info.player] = now + Config.SeatCooldownSeconds
 					sessions[seat] = nil
+					info.player:SetAttribute("SeatEndsAt", nil)
 					kick(seat)
+					throwAway(info.player, seat)
 				else
 					timerLabel(info.model).Text = string.format("%d:%02d", left // 60, left % 60)
 				end

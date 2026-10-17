@@ -1,5 +1,6 @@
 -- Live "reflection": the nearest MirrorSurface shows a copy of your character
 -- in a ViewportFrame, so you watch your own face change while training.
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
@@ -19,23 +20,28 @@ local pairs_: { { BasePart } } = {}
 local sourceCount = -1
 local lastSync = 0
 
-local function collectMirrors()
-	table.clear(mirrors)
-	for _, folderName in { "Lobby", "Trainers", "DuelArena" } do
-		local folder = workspace:WaitForChild(folderName, 30)
-		if folder then
-			for _, d in folder:GetDescendants() do
-				if d:IsA("BasePart") and d.Name == "MirrorSurface" then
-					table.insert(mirrors, d)
-				end
-			end
-		end
+-- Mirrors stream in and out with the map, so track them by tag instead of scanning once.
+local function trackMirrors()
+	for _, m in CollectionService:GetTagged("Mirror") do
+		table.insert(mirrors, m)
 	end
+	CollectionService:GetInstanceAddedSignal("Mirror"):Connect(function(m)
+		table.insert(mirrors, m)
+	end)
+	CollectionService:GetInstanceRemovedSignal("Mirror"):Connect(function(m)
+		local i = table.find(mirrors, m)
+		if i then
+			table.remove(mirrors, i)
+		end
+	end)
 end
 
 local function nearestMirror(root: BasePart): BasePart?
 	local best, bestDist = nil, RANGE
 	for _, m in mirrors do
+		if not m.Parent then
+			continue
+		end
 		-- only when standing in front of the mirror face
 		local rel = m.CFrame:PointToObjectSpace(root.Position)
 		local dist = (m.Position - root.Position).Magnitude
@@ -175,10 +181,8 @@ local function step()
 end
 
 function MirrorView.init()
-	task.spawn(function()
-		collectMirrors()
-		RunService.RenderStepped:Connect(step)
-	end)
+	trackMirrors()
+	RunService.RenderStepped:Connect(step)
 	player.CharacterAdded:Connect(clearClone)
 end
 
