@@ -18,7 +18,7 @@ local rng = Random.new(20261017) -- fixed seed: same map every server
 local PLAZA_RADIUS = 36
 local ARENA_CENTER = Vector3.new(0, 0, 125)
 local ARENA_RADIUS = 36
-local WORLD_RADIUS = 190 -- invisible wall; cliffs start right behind it
+local WORLD_RADIUS = 190 -- invisible wall; mountain backdrop starts right behind it
 local POND = Vector3.new(-95, 0, 85)
 local TITLE_Z = -118
 local SPAWN = Vector3.new(0, 0.6, -21)
@@ -619,19 +619,38 @@ local function duelArena()
 	folder.Parent = workspace
 end
 
-local function cliffs(t: Terrain)
-	local cliffRng = Random.new(77)
-	-- three rings, each taller: nothing behind them is visible from inside
-	for _, ring in { { WORLD_RADIUS + 24, 26, 40, 3 }, { WORLD_RADIUS + 60, 45, 70, 4 }, { WORLD_RADIUS + 110, 70, 110, 5 } } do
-		local radius, minR, maxR, step = ring[1], ring[2], ring[3], ring[4]
+-- Mountain backdrop behind the invisible wall: four rings, each bigger and taller,
+-- so from anywhere inside (even zoomed out) the world looks walled in by mountains.
+-- Purely visual: the Walls ring stops players long before they reach the slopes.
+local MOUNTAIN_RINGS = {
+	-- distance past the wall, min/max size, angle step, center height (fraction of size), snow?
+	{ 30, 28, 42, 4, 0.15, 0.45, false },
+	{ 75, 50, 75, 5, 0.2, 0.5, false },
+	{ 140, 85, 120, 6, 0.3, 0.6, true },
+	{ 240, 120, 160, 8, 0.4, 0.8, true },
+}
+
+local function mountains(t: Terrain)
+	local mRng = Random.new(77)
+	for ringIndex, ring in MOUNTAIN_RINGS do
+		local radius, minS, maxS, step, minY, maxY, snowy = WORLD_RADIUS + ring[1], ring[2], ring[3], ring[4], ring[5], ring[6], ring[7]
 		for deg = 0, 359, step do
-			local a = math.rad(deg + cliffRng:NextNumber(-2, 2))
-			local r = radius + cliffRng:NextNumber(-6, 6)
-			local size = cliffRng:NextNumber(minR, maxR)
-			local center = Vector3.new(math.cos(a) * r, cliffRng:NextNumber(size * 0.1, size * 0.5), math.sin(a) * r)
-			t:FillBall(center, size, if cliffRng:NextNumber() < 0.7 then Enum.Material.Rock else Enum.Material.Slate)
-			-- grassy caps on some peaks
-			if cliffRng:NextNumber() < 0.5 then
+			local a = math.rad(deg + mRng:NextNumber(-2, 2))
+			local r = radius + mRng:NextNumber(-8, 8)
+			local size = mRng:NextNumber(minS, maxS)
+			local center = Vector3.new(math.cos(a) * r, mRng:NextNumber(size * minY, size * maxY), math.sin(a) * r)
+			t:FillBall(center, size, if mRng:NextNumber() < 0.7 then Enum.Material.Rock else Enum.Material.Slate)
+			if ringIndex == 2 then
+				-- steep crag in front: tall tilted slab breaks the round silhouettes
+				local h = mRng:NextNumber(60, 100)
+				local foot = Vector3.new(math.cos(a) * (r - 18), h / 2 - 10, math.sin(a) * (r - 18))
+				t:FillBlock(CFrame.lookAt(foot, Vector3.new(0, foot.Y, 0)) * CFrame.Angles(math.rad(mRng:NextNumber(-12, -4)), 0, math.rad(mRng:NextNumber(-8, 8))),
+					Vector3.new(mRng:NextNumber(22, 34), h, 18), Enum.Material.Rock)
+			end
+			local top = center + Vector3.new(0, size * 0.8, 0)
+			if snowy and top.Y > 140 then
+				t:FillBall(top, size * 0.32, Enum.Material.Snow)
+			elseif not snowy and mRng:NextNumber() < 0.5 then
 				t:FillBall(center + Vector3.new(0, size * 0.75, 0), size * 0.35, Enum.Material.LeafyGrass)
 			end
 		end
@@ -646,7 +665,7 @@ end
 
 local function terrain()
 	local t = workspace.Terrain
-	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(720, 12, 720), Enum.Material.Grass)
+	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(1400, 12, 1400), Enum.Material.Grass)
 	t:FillCylinder(CFrame.new(0, -2, 0), 4, PLAZA_RADIUS + 2, Enum.Material.Pavement)
 	for _, path in PATHS do
 		local a, b = Vector3.new(path[1].X, -2, path[1].Y), Vector3.new(path[2].X, -2, path[2].Y)
@@ -655,7 +674,7 @@ local function terrain()
 	-- paved apron under the title sign
 	t:FillBlock(CFrame.new(0, -2, TITLE_Z), Vector3.new(50, 4, 14), Enum.Material.Pavement)
 	pond(t)
-	cliffs(t)
+	mountains(t)
 	pcall(function()
 		(t :: any).Decoration = true -- animated grass blades
 	end)
@@ -663,12 +682,14 @@ local function terrain()
 	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(84, 150, 70))
 	t:SetMaterialColor(Enum.Material.Pavement, Color3.fromRGB(226, 210, 186))
 	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(232, 210, 160))
-	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(130, 122, 136))
+	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(128, 118, 134))
+	t:SetMaterialColor(Enum.Material.Slate, Color3.fromRGB(104, 98, 116))
+	t:SetMaterialColor(Enum.Material.Snow, Color3.fromRGB(246, 248, 255))
 	t.WaterWaveSize = 0.1
 	t.WaterColor = Color3.fromRGB(60, 160, 180)
 end
 
--- Invisible ring wall so players can't walk out to the cliffs or the map edge.
+-- Invisible ring wall: the only real boundary. Mountains behind it are just scenery.
 local function walls()
 	local folder = Instance.new("Folder")
 	folder.Name = "Walls"
