@@ -37,6 +37,27 @@ Config.ClickLimitPerSec = 12
 -- Experimental procedural head mesh (client/HeadMesh). Off: quality not good enough yet,
 -- tier heads will come from ready-made models.
 Config.UseMeshHeads = false
+-- Own head pack from tools/blender/make_heads.py, imported into ReplicatedStorage.TierHeads
+-- (Head1..Head8). Worn over the avatar head by server/HeadWear.
+Config.UseTierHeadModels = true
+-- Plain numbers (no Roblox types here, Config is also loaded by Lune tests).
+Config.TierHeadFit = {
+	scale = { 1.05, 1.1, 1.05 }, -- relative to the avatar head size (x, y, z)
+	offsetY = -0.05, -- studs, after import
+	rotateY = 0, -- degrees, if the imported model faces the wrong way
+}
+-- Face shape of each tier model (fat, jaw) — must match TIERS in make_heads.py.
+Config.TierShapes = {
+	{ fat = 1.0, jaw = 0.0 },
+	{ fat = 0.75, jaw = 0.12 },
+	{ fat = 0.5, jaw = 0.26 },
+	{ fat = 0.3, jaw = 0.4 },
+	{ fat = 0.15, jaw = 0.55 },
+	{ fat = 0.05, jaw = 0.7 },
+	{ fat = 0.0, jaw = 0.85 },
+	{ fat = 0.0, jaw = 1.0 },
+}
+
 -- Catalog heads per tier: off — user didn't like them; own Blender heads are coming.
 Config.UseCatalogHeads = false
 -- Ready-made catalog Dynamic Head asset ids per tier (index = Config.Tiers index).
