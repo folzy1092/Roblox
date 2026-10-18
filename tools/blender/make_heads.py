@@ -115,7 +115,7 @@ def back_depth(y):
 
 
 def bottom(jaw):
-    return lerp(-1.0, -1.08, jaw)
+    return lerp(-1.0, -1.14, jaw)
 
 
 def relief(x, y, front, fat, jaw):
@@ -132,9 +132,9 @@ def relief(x, y, front, fat, jaw):
     # eye sockets
     r -= g((ax - 0.36) / 0.15, (y - 0.13) / 0.09) * (0.02 + 0.035 * jaw)
     # cheekbones
-    r += g((ax - 0.62) / 0.16, (y - 0.02) / 0.1) * (0.015 + 0.06 * jaw)
+    r += g((ax - 0.62) / 0.2, (y - 0.02) / 0.12) * (0.015 + 0.04 * jaw)
     # under cheekbones: puffy (fat) or hollow (lean)
-    r += g((ax - 0.5) / 0.2, (y + 0.32) / 0.15) * (0.1 * fat - 0.05 * jaw)
+    r += g((ax - 0.5) / 0.24, (y + 0.32) / 0.18) * (0.1 * fat - 0.025 * jaw)
     # lips
     r += g(x / 0.22, (y + 0.44) / 0.05) * 0.03
     r += g(x / 0.18, (y + 0.53) / 0.045) * 0.025
@@ -154,7 +154,7 @@ def surface(a, y, fat, jaw):
     # diamond reshapes the face and sides; the back of the skull stays round
     w_face = face_width(uy, fat, jaw)
     w_back = round_width(uy, fat * 0.5)
-    w = lerp(w_back, w_face, clamp(0.35 + front, 0, 1)) * WIDTH
+    w = lerp(w_back, w_face, clamp(0.35 + front, 0, 1)) * WIDTH * lerp(1.0, 0.9, jaw)  # top tiers: narrower, longer face
     # jaw corner below the ears on the sides
     w *= 1 + g(0, (uy + 0.42) / 0.18) * 0.03 * jaw * (1 - front)
     push = relief(cx, uy, front, fat, jaw)
@@ -326,7 +326,14 @@ def build_head(name, fat, jaw):
     obj = bpy.data.objects.new(name, mesh)
     bpy.context.collection.objects.link(obj)
 
-    img = paint_image(f"face_{name}", fat, jaw)
+    # face texture drawn by draw_faces.py (line art); fall back to the procedural paint
+    drawn = os.path.join(OUT, f"face_{name}.png")
+    if os.path.exists(drawn):
+        img = bpy.data.images.load(drawn)
+        img.alpha_mode = "STRAIGHT"
+    else:
+        img = paint_image(f"face_{name}", fat, jaw)
+    add_ears(obj, fat, jaw)
     mat = bpy.data.materials.new(f"mat_{name}")
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
@@ -337,6 +344,35 @@ def build_head(name, fat, jaw):
     mat.node_tree.links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
     obj.data.materials.append(mat)
     return obj
+
+
+def add_ears(obj, fat, jaw):
+    """Two ears on the sides, joined into the head. Their UVs point at a transparent
+    (back-of-head) texel, so they take the skin color."""
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    uv_layer = bm.loops.layers.uv.active
+    stick_out = lerp(0.35, 0.15, jaw) + 0.1 * fat  # Sub-3 ears stick out more
+    for side in (1, -1):
+        res = bmesh.ops.create_uvsphere(bm, u_segments=16, v_segments=12, radius=1.0)
+        verts = res["verts"]
+        y_mid = 0.02  # between brow and nose tip (head units)
+        # skull half width in Blender units (same narrowing as surface())
+        x_side = round_width(y_mid, fat * 0.5) * WIDTH * lerp(1.0, 0.9, jaw) * 0.5 - 0.01
+        for v in verts:
+            x, y, z = v.co
+            # flat ear: thin across, tall, slightly deep; tilt the back edge outward
+            v.co.x = x * 0.035 + side * (x_side + 0.01 + 0.04 * stick_out * (y * 0.5 + 0.5))
+            v.co.y = y * 0.075 + 0.04
+            v.co.z = z * 0.13 + y_mid * 0.5
+        faces = {f for v in verts for f in v.link_faces}
+        for f in faces:
+            for loop in f.loops:
+                loop[uv_layer].uv = (0.25, 0.5)
+    bm.to_mesh(obj.data)
+    bm.free()
+    for poly in obj.data.polygons:
+        poly.use_smooth = True
 
 
 def export(obj, path):
@@ -408,6 +444,22 @@ def preview(objs):
     bpy.ops.render.render(write_still=True)
 
 
+def closeup(objs, picks=(0, 4, 7)):
+    """Bigger front shot of a few tiers (Sub-3, HTN, True Adam)."""
+    scene = bpy.context.scene
+    for k, obj in enumerate(objs):
+        obj.hide_render = k not in picks
+        if k in picks:
+            obj.location = ((picks.index(k) - 1) * 1.25, 0, 0)
+    scene.camera.data.ortho_scale = 1.25 * 3
+    scene.render.resolution_x = 1200
+    scene.render.resolution_y = 520
+    scene.render.filepath = os.path.join(OUT, "preview_close.png")
+    bpy.ops.render.render(write_still=True)
+    for obj in objs:
+        obj.hide_render = False
+
+
 def side_preview(objs):
     """Same row seen from the side (profile), to judge jaw and chin."""
     scene = bpy.context.scene
@@ -431,6 +483,12 @@ def main():
         print(f"[heads] {obj.name} done: {len(obj.data.vertices)} verts, {len(obj.data.polygons)} faces, "
               f"z {min(v.z for v in bb):.2f}..{max(v.z for v in bb):.2f}, y {min(v.y for v in bb):.2f}..{max(v.y for v in bb):.2f}")
     preview(objs)
+    closeup(objs)
+    for k, obj in enumerate(objs):
+        obj.location = ((k - (len(objs) - 1) / 2) * 1.25, 0, 0)
+    bpy.context.scene.camera.data.ortho_scale = 1.25 * len(objs)
+    bpy.context.scene.render.resolution_x = 200 * len(objs)
+    bpy.context.scene.render.resolution_y = 280
     side_preview(objs)
     print("[heads] all done ->", OUT)
 
