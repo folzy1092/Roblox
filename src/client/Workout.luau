@@ -36,6 +36,9 @@ local markers: { Part } = {} -- zone markers (tap) or path dots (stroke)
 local statusUntil = 0
 local hammerUntil = 0
 local hammerZone: Vector3? = nil
+local flash: Frame
+local stars: { Part } = {}
+local hurt: (strength: number) -> ()
 
 local function head(): BasePart?
 	local character = player.Character
@@ -156,6 +159,27 @@ local function animateHammer(h: BasePart)
 	hammerHandle.Transparency = 0
 end
 
+-- Red flash over the screen; lower start transparency = stronger hit.
+hurt = function(strength: number)
+	flash.BackgroundTransparency = strength
+	TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+end
+
+-- Cartoon dizzy stars circling the head while stunned.
+local function animateStars(h: BasePart)
+	local stunned = tapper ~= nil and tapper.phase == "stunned"
+	for i, star in stars do
+		if stunned then
+			local a = os.clock() * 4 + i * (math.pi * 2 / #stars)
+			local r = h.Size.X * 0.7
+			star.CFrame = h.CFrame * CFrame.new(math.cos(a) * r, h.Size.Y * 0.65, math.sin(a) * r)
+			star.Transparency = 0
+		else
+			star.Transparency = 1
+		end
+	end
+end
+
 local function onTap(h: BasePart, screen: Vector2)
 	local x, y = screenToFace(h, screen)
 	if not x then
@@ -169,18 +193,26 @@ local function onTap(h: BasePart, screen: Vector2)
 			best, bestDist = i, d
 		end
 	end
-	if not best then
+	-- a click on the face away from every zone still lands the hammer: that's a miss
+	local onFace = ((x - 0.5) / 0.5) ^ 2 + (((y :: number) - 0.5) / 0.5) ^ 2 <= 1.1
+	if not best and not onFace then
 		return
 	end
-	local zone = MiniGames.Zones[best]
-	local result = tapper:tap(best, os.clock())
-	if result == "hit" or result == "rest_fail" then
-		bonk(faceToWorld(h, zone.x, zone.y))
+	local result = tapper:tap(best or 0, os.clock())
+	if result == "stunned" then
+		return
 	end
+	bonk(faceToWorld(h, x, y :: number))
 	if result == "hit" then
 		remotes.Rep:FireServer()
 	elseif result == "miss" then
-		setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.6)
+		remotes.Fail:FireServer("miss")
+		hurt(0.45)
+		setStatus(Strings.get("workout.ouch"), Color3.fromRGB(255, 110, 110), 1)
+	elseif result == "rest_fail" then
+		remotes.Fail:FireServer("rest_fail")
+		hurt(0.25)
+		setStatus(Strings.get("workout.crack"), Color3.fromRGB(255, 80, 80), 1.5)
 	end
 end
 
@@ -261,6 +293,10 @@ function Workout.init()
 	roller.Transparency = 1
 	hammerHead.Transparency = 1
 	hammerHandle.Transparency = 1
+	for i = 1, 3 do
+		stars[i] = localPart("DizzyStar", Vector3.new(0.22, 0.22, 0.22), Color3.fromRGB(255, 230, 90), Enum.PartType.Ball)
+		stars[i].Transparency = 1
+	end
 
 	local gui = Ui.screen("Workout", 3)
 	statusLabel = Ui.label({
@@ -273,6 +309,13 @@ function Workout.init()
 		Parent = gui,
 	})
 	Ui.corner(0.3).Parent = statusLabel
+	flash = Ui.make("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.fromRGB(255, 40, 40),
+		BackgroundTransparency = 1,
+		ZIndex = 0,
+		Parent = gui,
+	})
 	gui.Parent = player:WaitForChild("PlayerGui")
 
 	RunService.RenderStepped:Connect(function()
@@ -282,6 +325,9 @@ function Workout.init()
 		if not h or not mode then
 			hammerHead.Transparency = 1
 			hammerHandle.Transparency = 1
+			for _, star in stars do
+				star.Transparency = 1
+			end
 			return
 		end
 		if mode == "tap" then
@@ -293,6 +339,7 @@ function Workout.init()
 			end
 			refreshTapper()
 			animateHammer(h)
+			animateStars(h)
 		else
 			for i, p in stroke.points do
 				markers[i].CFrame = CFrame.new(faceToWorld(h, p[1], p[2]))

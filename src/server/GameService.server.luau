@@ -75,6 +75,25 @@ end)
 
 -- One finished mini-game rep (gua sha stroke, bone tapper hit). Rate-limited per kind.
 local lastRep: { [Player]: number } = {}
+local lastFail: { [Player]: number } = {}
+
+-- Mini-game mistake reported by the client (wrong spot / hit during rest): costs rating + Glow.
+Remotes.Fail.OnServerEvent:Connect(function(player, reason)
+	local data = PlayerData.get(player)
+	local tool = Tools.held(player)
+	local factor = if typeof(reason) == "string" then MiniGames.PenaltyFactor[reason] else nil
+	if not data or not tool or not factor or not MiniGames.kindOf(tool.Name) or not data.items[tool.Name] then
+		return
+	end
+	local now = os.clock()
+	if now - (lastFail[player] or 0) < 0.2 then
+		return
+	end
+	lastFail[player] = now
+	data.equipped = tool.Name
+	Progression.applyPenalty(data, factor)
+	PlayerData.publish(player)
+end)
 Remotes.Rep.OnServerEvent:Connect(function(player)
 	local data = PlayerData.get(player)
 	local tool = Tools.held(player)
@@ -170,6 +189,7 @@ Players.PlayerRemoving:Connect(function(player)
 	passCache[player] = nil
 	clickWindow[player] = nil
 	lastRep[player] = nil
+	lastFail[player] = nil
 end)
 
 game:BindToClose(PlayerData.saveAll)

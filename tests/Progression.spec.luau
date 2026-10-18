@@ -117,4 +117,19 @@ tests["rep factor scales a click"] = function()
 	eq(P.clickGain(d, { trainerMult = 3, hasX2 = false, factor = 5 }), 15)
 end
 
+tests["penalty takes rating and glow, never below zero"] = function()
+	local d = P.defaultData()
+	d.equipped = "bonetapper"
+	d.items.bonetapper = true
+	d.rating = 500
+	d.glow = 120
+	local lost = P.applyPenalty(d, 2) -- base gain 50 * 2 = 100
+	eq(lost, 100)
+	eq(d.rating, 400)
+	eq(d.glow, 20)
+	P.applyPenalty(d, 6)
+	eq(d.rating, 100)
+	eq(d.glow, 0)
+end
+
 return tests

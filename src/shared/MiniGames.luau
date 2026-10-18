@@ -14,6 +14,12 @@ MiniGames.RepFactor = {
 	tap = 2,
 }
 
+-- Mistakes cost this many base clicks of rating and Glow ("you hurt yourself").
+MiniGames.PenaltyFactor = {
+	miss = 2, -- hit the face outside the lit zone
+	rest_fail = 6, -- hit during the rest: something cracked
+}
+
 -- Server-side floor between accepted reps (anti-spam).
 MiniGames.MinRepInterval = {
 	stroke = 0.45,

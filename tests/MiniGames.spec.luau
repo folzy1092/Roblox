@@ -81,4 +81,9 @@ tests["stroke: moving without pressing does nothing"] = function()
 	end
 end
 
+tests["penalty factors: rest fail hurts more than a miss"] = function()
+	truthy(MiniGames.PenaltyFactor.rest_fail > MiniGames.PenaltyFactor.miss, "rest fail worse")
+	eq(MiniGames.PenaltyFactor.bogus, nil)
+end
+
 return tests

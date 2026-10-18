@@ -77,6 +77,15 @@ function Progression.applyClick(data: Data, ctx: ClickContext): (number, number)
 	return data.rating - before, gain
 end
 
+-- Self-inflicted mistake (e.g. Bone Tapper hit in the wrong place): lose `factor` base clicks
+-- of rating and Glow. Base = no trainer/x2 boosts. Never below zero. Returns amount lost.
+function Progression.applyPenalty(data: Data, factor: number): number
+	local loss = Progression.clickGain(data, { trainerMult = 1, hasX2 = false, factor = factor })
+	data.rating = math.max(0, data.rating - loss)
+	data.glow = math.max(0, data.glow - loss)
+	return loss
+end
+
 function Progression.canRebirth(data: Data): boolean
 	return data.rebirths < Config.MaxRebirths and data.rating >= Progression.capRating(data.rebirths)
 end

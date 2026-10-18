@@ -87,7 +87,12 @@ end
 
 local function popup(amount: number)
 	local h = head()
-	if not h or amount <= 0 then
+	if not h or amount == 0 then
+		return
+	end
+	local loss = amount < 0
+	-- Glow also drops on purchases and rebirth; only show losses from exercise mistakes
+	if loss and not heldMiniGame() then
 		return
 	end
 	local gui = Instance.new("BillboardGui")
@@ -99,10 +104,10 @@ local function popup(amount: number)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
 	label.AutoLocalize = false
-	label.Text = "+" .. Strings.num(amount)
+	label.Text = if loss then "-" .. Strings.num(-amount) else "+" .. Strings.num(amount)
 	label.TextScaled = true
 	label.Font = Enum.Font.FredokaOne
-	label.TextColor3 = Color3.fromRGB(255, 230, 120)
+	label.TextColor3 = if loss then Color3.fromRGB(255, 90, 90) else Color3.fromRGB(255, 230, 120)
 	label.TextStrokeTransparency = 0.2
 	label.Parent = gui
 	gui.Parent = player:WaitForChild("PlayerGui")

@@ -68,3 +68,5 @@ workout.miss,Miss,,,Miss,Мимо
 workout.combo,Combo x{n},,,Combo x{n},Комбо x{n}
 workout.stroke_hint,Hold and drag along the dots: chin to ear,,,Hold and drag along the dots: chin to ear,Зажми и проведи по точкам: от подбородка к уху
 workout.stroke_done,Smooth!,,,Smooth!,Гладко!
+workout.ouch,Ouch! You hurt yourself,,,Ouch! You hurt yourself,Ай! Ты сделал себе больно
+workout.crack,Crack! Never hit during rest,,,Crack! Never hit during rest,Хрусть! Не бей во время передышки
