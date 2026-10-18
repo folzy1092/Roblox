@@ -98,4 +98,23 @@ function HeadShape.sideRelief(y: number, side: number, jaw: number): number
 	return g(0, (y + 0.45) / 0.09) * side * 0.09 * jaw
 end
 
+export type Point = { x: number, y: number, z: number }
+
+-- Surface point in head units (radius 1, front = -z) at angle `a` around the head
+-- (cos a = left/right, sin a < 0 is the face) and height y (+1 crown .. bottom(jaw) chin).
+function HeadShape.surfaceAt(a: number, y: number, fat: number, jaw: number): Point
+	local unitY = math.clamp(y, -1, 1)
+	local cx, sz = math.cos(a), math.sin(a)
+	local front = math.max(0, -sz)
+	local push = HeadShape.relief(cx, unitY, front, fat, jaw) + HeadShape.sideRelief(unitY, math.abs(cx), jaw)
+	local hw = HeadShape.halfWidth(unitY, fat, jaw) * (1 + push)
+	local hd = HeadShape.halfDepth(unitY, fat, jaw) * (1 + push)
+	return { x = hw * cx, y = y, z = hd * sz - HeadShape.chinForward(unitY, jaw) * front }
+end
+
+-- Surface point on the face: x = left/right across the face (-1..1), y = height.
+function HeadShape.surface(x: number, y: number, fat: number, jaw: number): Point
+	return HeadShape.surfaceAt(-math.acos(math.clamp(x, -1, 1)), y, fat, jaw)
+end
+
 return HeadShape

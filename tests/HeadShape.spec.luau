@@ -60,4 +60,16 @@ tests["relief: brow ridge stronger on chad, eye sockets sink"] = function()
 	truthy(HeadShape.relief(0.33, 0.11, 1, 0, 1) < 0, "eye socket")
 end
 
+tests["surface: front center point is in front, side point is to the side"] = function()
+	local front = HeadShape.surface(0, 0, 0, 0.5)
+	truthy(front.z < -0.8, `front z {front.z}`)
+	truthy(math.abs(front.x) < 1e-6, "centered")
+	local side = HeadShape.surface(0.9, 0, 0, 0.5)
+	truthy(side.x > 0.8 and side.z < 0, "right cheek is right and still on the front")
+end
+
+tests["surface: nose tip sticks out further than the cheek"] = function()
+	truthy(HeadShape.surface(0, -0.24, 0, 1).z < HeadShape.surface(0.5, -0.24, 0, 1).z, "nose ahead")
+end
+
 return tests

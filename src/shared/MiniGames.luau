@@ -30,15 +30,18 @@ function MiniGames.kindOf(itemId: string): string?
 	return KINDS[itemId]
 end
 
--- Face zones for the tapper, in panel coordinates (0..1, x right, y down).
+-- Face coordinates used below: x = left/right across the face (-1..1), y = height
+-- (+1 crown .. -1 chin); HeadShape.surface turns them into points on the head.
+
+-- Bone Tapper hits bones: brow ridge, cheekbones, jaw angles, chin.
 MiniGames.Zones = {
-	{ name = "browL", x = 0.36, y = 0.3 },
-	{ name = "browR", x = 0.64, y = 0.3 },
-	{ name = "cheekL", x = 0.28, y = 0.55 },
-	{ name = "cheekR", x = 0.72, y = 0.55 },
-	{ name = "jawL", x = 0.34, y = 0.76 },
-	{ name = "jawR", x = 0.66, y = 0.76 },
-	{ name = "chin", x = 0.5, y = 0.86 },
+	{ name = "browL", x = -0.33, y = 0.3 },
+	{ name = "browR", x = 0.33, y = 0.3 },
+	{ name = "cheekboneL", x = -0.62, y = -0.02 },
+	{ name = "cheekboneR", x = 0.62, y = -0.02 },
+	{ name = "jawL", x = -0.78, y = -0.48 },
+	{ name = "jawR", x = 0.78, y = -0.48 },
+	{ name = "chin", x = 0, y = -0.86 },
 }
 
 -- Small deterministic RNG so tests are stable without Roblox's Random.
@@ -136,24 +139,23 @@ MiniGames.Tapper = Tapper
 
 local Stroke = {}
 Stroke.__index = Stroke
-Stroke.RADIUS = 0.08 -- how close the pointer must pass each point (panel units)
+Stroke.RADIUS = 0.16 -- how close the pointer must pass each point (face units)
 
--- Chin to ear along the left cheek; the right side is mirrored.
-local LEFT_PATH = {
-	{ 0.44, 0.84 },
-	{ 0.36, 0.76 },
-	{ 0.29, 0.66 },
-	{ 0.25, 0.55 },
-	{ 0.22, 0.45 },
-	{ 0.2, 0.36 },
+-- Gua sha lines on the left side (right side is mirrored): along the jawline from the chin
+-- to the ear, and under the cheekbone from the nose to the ear.
+Stroke.LINES = {
+	jaw = { { -0.1, -0.9 }, { -0.32, -0.8 }, { -0.55, -0.64 }, { -0.72, -0.46 }, { -0.82, -0.25 } },
+	cheek = { { -0.2, -0.3 }, { -0.38, -0.22 }, { -0.55, -0.14 }, { -0.7, -0.06 }, { -0.82, 0.02 } },
 }
+-- order the strokes come in
+Stroke.CYCLE = { { "L", "jaw" }, { "R", "jaw" }, { "L", "cheek" }, { "R", "cheek" } }
 
-function Stroke.new(side: string)
+function Stroke.new(side: string, line: string?)
 	local points = {}
-	for _, p in LEFT_PATH do
-		table.insert(points, if side == "R" then { 1 - p[1], p[2] } else { p[1], p[2] })
+	for _, p in Stroke.LINES[line or "jaw"] do
+		table.insert(points, if side == "R" then { -p[1], p[2] } else { p[1], p[2] })
 	end
-	return setmetatable({ side = side, points = points, reached = 0, pressed = false }, Stroke)
+	return setmetatable({ side = side, line = line or "jaw", points = points, reached = 0, pressed = false }, Stroke)
 end
 
 function Stroke:press()

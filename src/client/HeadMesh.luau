@@ -23,7 +23,7 @@ type Entry = {
 	part: MeshPart,
 	weld: Weld,
 	mesh: EditableMesh,
-	image: EditableImage,
+	image: EditableImage?,
 	verts: { number },
 	shape: { fat: number, jaw: number },
 	painted: { fat: number, jaw: number },
@@ -35,17 +35,18 @@ local supported = true
 
 -- Ring i (0 = crown .. LAT = chin), column j (0..LON, column LON == column 0 in space).
 local function vertexAt(h: Vector3, i: number, j: number, fat: number, jaw: number): Vector3
-	local bottom = HeadShape.bottom(jaw)
-	local y = 1 - (i / LAT) * (1 - bottom)
-	local unitY = math.clamp(y, -1, 1)
-	local a = (j % LON) / LON * math.pi * 2
-	local cx, sz = math.cos(a), math.sin(a)
-	local front = math.max(0, -sz)
-	local push = HeadShape.relief(cx, unitY, front, fat, jaw) + HeadShape.sideRelief(unitY, math.abs(cx), jaw)
-	local hw = HeadShape.halfWidth(unitY, fat, jaw) * (1 + push)
-	local hd = HeadShape.halfDepth(unitY, fat, jaw) * (1 + push)
-	local z = hd * sz - HeadShape.chinForward(unitY, jaw) * front
-	return Vector3.new(hw * cx * h.X / 2, y * h.Y / 2, z * h.Z / 2)
+	local y = 1 - (i / LAT) * (1 - HeadShape.bottom(jaw))
+	local p = HeadShape.surfaceAt((j % LON) / LON * math.pi * 2, y, fat, jaw)
+	return Vector3.new(p.x * h.X / 2, p.y * h.Y / 2, p.z * h.Z / 2)
+end
+
+-- Visual-only mesh part: box collision so nothing has to be cooked on a game server.
+local function meshPartFrom(mesh: EditableMesh): MeshPart
+	return AssetService:CreateMeshPartAsync(Content.fromObject(mesh), {
+		CollisionFidelity = Enum.CollisionFidelity.Box,
+		RenderFidelity = Enum.RenderFidelity.Precise,
+		FluidFidelity = Enum.FluidFidelity.Automatic,
+	})
 end
 
 local function index(i: number, j: number): number
@@ -101,14 +102,17 @@ local function reshape(entry: Entry, fat: number, jaw: number)
 	for k, id in entry.verts do
 		entry.mesh:SetPosition(id, positions[k])
 	end
-	local fresh = AssetService:CreateMeshPartAsync(Content.fromObject(entry.mesh))
+	local fresh = meshPartFrom(entry.mesh)
 	entry.part:ApplyMesh(fresh)
 	fresh:Destroy()
 	entry.part.Size = maxV - minV
 	entry.weld.C0 = CFrame.new((minV + maxV) / 2)
 	entry.shape = { fat = fat, jaw = jaw }
-	if math.abs(fat - entry.painted.fat) + math.abs(jaw - entry.painted.jaw) > REPAINT_DELTA then
-		paint(entry, fat, jaw)
+	if entry.image and math.abs(fat - entry.painted.fat) + math.abs(jaw - entry.painted.jaw) > REPAINT_DELTA then
+		local ok, err = pcall(paint, entry, fat, jaw)
+		if not ok then
+			warn(`[HeadMesh] face paint failed: {err}`)
+		end
 	end
 end
 
@@ -126,7 +130,9 @@ local function remove(player: Player)
 	if entry then
 		entry.part:Destroy()
 		entry.mesh:Destroy()
-		entry.image:Destroy()
+		if entry.image then
+			entry.image:Destroy()
+		end
 		entries[player] = nil
 	end
 end
@@ -146,8 +152,7 @@ local function attach(player: Player, character: Model)
 	local s = Looks.shape(player:GetAttribute("Rating") or 0)
 	local ok, err = pcall(function()
 		local mesh, verts = createMesh(head.Size, s.fat, s.jaw)
-		local image = AssetService:CreateEditableImage({ Size = Vector2.new(FacePaint.SIZE, FacePaint.SIZE) })
-		local part = AssetService:CreateMeshPartAsync(Content.fromObject(mesh))
+		local part = meshPartFrom(mesh)
 		part.Name = "LooksHead"
 		part.Anchored = false
 		part.CanCollide = false
@@ -155,8 +160,18 @@ local function attach(player: Player, character: Model)
 		part.CanTouch = false
 		part.Massless = true
 		part.Material = Enum.Material.SmoothPlastic
-		part.Color = Color3.new(1, 1, 1)
-		part.TextureContent = Content.fromObject(image)
+		part.Color = head.Color
+		-- painted face texture is optional: without it the head is plain skin
+		local image: EditableImage? = nil
+		local texOk, texErr = pcall(function()
+			image = AssetService:CreateEditableImage({ Size = Vector2.new(FacePaint.SIZE, FacePaint.SIZE) })
+			part.TextureContent = Content.fromObject(image :: EditableImage)
+			part.Color = Color3.new(1, 1, 1)
+		end)
+		if not texOk then
+			warn(`[HeadMesh] face texture unavailable: {texErr}`)
+			image = nil
+		end
 
 		local weld = Instance.new("Weld")
 		weld.Part0 = head

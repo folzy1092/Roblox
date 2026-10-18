@@ -1,13 +1,17 @@
 -- Exercises on the avatar's own face (camera is on the face while the item is held, see FaceCamera).
--- Bone Tapper: a zone lights up on your face; click/tap it and the hammer bonks it.
--- Gua Sha: dots run along your cheek from chin to ear; hold and drag through them.
--- Rules live in shared/MiniGames; every finished rep fires the Rep remote (server checks and pays).
+-- Bone Tapper: a bone zone lights up on your face (brows, cheekbones, jaw angles, chin);
+--   click/tap it and the mallet bonks it. Missing or hitting during the rest hurts you.
+-- Gua Sha: dots run along your jawline / under your cheekbone; hold and drag through them.
+-- Markers sit on the real head surface (HeadShape.surface, same shape as HeadMesh) and hits are
+-- checked on screen. Rules live in shared/MiniGames; reps/mistakes go to the server (Rep / Fail).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
+local HeadShape = require(ReplicatedStorage.Shared.HeadShape)
+local Looks = require(ReplicatedStorage.Shared.Looks)
 local MiniGames = require(ReplicatedStorage.Shared.MiniGames)
 local Strings = require(script.Parent.Strings)
 local Ui = require(script.Parent.Ui)
@@ -18,27 +22,27 @@ local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local GOLD = Color3.fromRGB(255, 210, 70)
 local DIM = Color3.fromRGB(150, 110, 200)
 local DONE = Color3.fromRGB(200, 130, 255)
-local SURFACE = 0.08 -- studs in front of the head's front face
+local LIFT = 1.04 -- markers sit just above the skin
+local HIT_RADIUS = 0.07 -- of screen height: how close a click must be to a marker
 
 local Workout = {}
 
 local folder: Folder -- client-only parts, under the camera
 local statusLabel: TextLabel
+local flash: Frame
 local hammerHead: Part
 local hammerHandle: Part
 local roller: Part
+local stars: { Part } = {}
 
 local mode: string? = nil
 local tapper: any = nil
 local stroke: any = nil
-local strokeSide = "L"
+local strokeStep = 1 -- position in MiniGames.Stroke.CYCLE
 local markers: { Part } = {} -- zone markers (tap) or path dots (stroke)
 local statusUntil = 0
 local hammerUntil = 0
 local hammerZone: Vector3? = nil
-local flash: Frame
-local stars: { Part } = {}
-local hurt: (strength: number) -> ()
 
 local function head(): BasePart?
 	local character = player.Character
@@ -62,6 +66,7 @@ local function localPart(name: string, size: Vector3, color: Color3, shape: Enum
 	p.Name = name
 	p.Anchored = true
 	p.CanCollide = false
+	p.CanQuery = false
 	p.CanTouch = false
 	p.CastShadow = false
 	p.Material = Enum.Material.Neon
@@ -74,26 +79,21 @@ local function localPart(name: string, size: Vector3, color: Color3, shape: Enum
 	return p
 end
 
--- Panel coordinates (0..1, x right, y down) <-> world point on the face plane.
-local function faceToWorld(h: BasePart, x: number, y: number): Vector3
-	local s = h.Size
-	return h.CFrame:PointToWorldSpace(Vector3.new((x - 0.5) * s.X, (0.5 - y) * s.Y, -s.Z * 0.5 - SURFACE))
+-- Point on the local player's head surface for face coordinates (x -1..1, y +1..-1).
+local function facePoint(h: BasePart, x: number, y: number): Vector3
+	local s = Looks.shape(player:GetAttribute("Rating") or 0)
+	local p = HeadShape.surface(x, y, s.fat, s.jaw)
+	local size = h.Size
+	return h.CFrame:PointToWorldSpace(Vector3.new(p.x * size.X / 2, p.y * size.Y / 2, p.z * size.Z / 2) * LIFT)
 end
 
-local function screenToFace(h: BasePart, screen: Vector2): (number?, number?)
-	local ray = workspace.CurrentCamera:ScreenPointToRay(screen.X, screen.Y) -- input positions exclude the top bar inset
-	local normal = h.CFrame.LookVector
-	local planePoint = h.CFrame:PointToWorldSpace(Vector3.new(0, 0, -h.Size.Z * 0.5 - SURFACE))
-	local denom = ray.Direction:Dot(normal)
-	if math.abs(denom) < 1e-4 then
-		return nil, nil
-	end
-	local t = (planePoint - ray.Origin):Dot(normal) / denom
-	if t < 0 then
-		return nil, nil
-	end
-	local hit = h.CFrame:PointToObjectSpace(ray.Origin + ray.Direction * t)
-	return hit.X / h.Size.X + 0.5, 0.5 - hit.Y / h.Size.Y
+local function screenOf(world: Vector3): (Vector2, boolean)
+	local p, visible = workspace.CurrentCamera:WorldToScreenPoint(world)
+	return Vector2.new(p.X, p.Y), visible and p.Z > 0
+end
+
+local function hitRadius(): number
+	return workspace.CurrentCamera.ViewportSize.Y * HIT_RADIUS
 end
 
 local function clearMarkers()
@@ -108,13 +108,19 @@ local function markerSize(h: BasePart, scale: number): Vector3
 	return Vector3.new(d, d, d)
 end
 
+-- Red flash over the screen; lower start transparency = stronger hit.
+local function hurt(strength: number)
+	flash.BackgroundTransparency = strength
+	TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
+end
+
 ---------------------------------------------------------------- Bone Tapper
 
 local function startTapper(h: BasePart)
 	clearMarkers()
 	tapper = MiniGames.Tapper.new(math.floor(os.clock() * 1000) % 100000, os.clock())
 	for i in MiniGames.Zones do
-		markers[i] = localPart("Zone", markerSize(h, 0.16), DIM, Enum.PartType.Ball)
+		markers[i] = localPart("Zone", markerSize(h, 0.12), DIM, Enum.PartType.Ball)
 	end
 	setStatus(Strings.get("workout.tap_hint"), GOLD, 2)
 end
@@ -123,7 +129,8 @@ local function refreshTapper()
 	for i, m in markers do
 		local lit = tapper.phase == "hit" and tapper.target == i
 		m.Color = if lit then GOLD else DIM
-		m.Transparency = if lit then 0.05 + 0.15 * math.sin(os.clock() * 12) else 0.65
+		m.Transparency = if lit then 0.05 + 0.15 * math.sin(os.clock() * 12) else 0.7
+		m.Size = if lit then Vector3.one * 0.2 else Vector3.one * 0.13
 	end
 	if tapper.phase == "rest" then
 		setStatus(Strings.get("workout.rest"), Color3.fromRGB(120, 220, 255))
@@ -134,8 +141,8 @@ local function refreshTapper()
 	end
 end
 
-local function bonk(zoneWorld: Vector3)
-	hammerZone = zoneWorld
+local function bonk(world: Vector3)
+	hammerZone = world
 	hammerUntil = os.clock() + 0.3
 end
 
@@ -156,9 +163,9 @@ local function animateHammer(h: BasePart)
 	local angle = if t < 0.4 then 1.1 * (1 - t / 0.4) else 0.55 * ((t - 0.4) / 0.6)
 	local look, right, up = h.CFrame.LookVector, h.CFrame.RightVector, h.CFrame.UpVector
 	local grip = hammerZone + look * 0.3 + right * 0.8 - up * 0.65
-	local strike = hammerZone + look * 0.14 -- head center when touching the face
+	local strike = hammerZone + look * 0.12
 	local arm = strike - grip
-	local axis = arm:Cross(look).Unit -- positive angle lifts the head away from the face
+	local axis = arm:Cross(look).Unit
 	local swing = CFrame.fromAxisAngle(axis, angle)
 	local headPos = grip + swing:VectorToWorldSpace(arm)
 	hammerHead.CFrame = alongX(headPos, swing:VectorToWorldSpace(-look))
@@ -167,12 +174,6 @@ local function animateHammer(h: BasePart)
 	hammerHandle.CFrame = alongX(grip + shaft / 2, shaft.Unit)
 	hammerHead.Transparency = 0
 	hammerHandle.Transparency = 0
-end
-
--- Red flash over the screen; lower start transparency = stronger hit.
-hurt = function(strength: number)
-	flash.BackgroundTransparency = strength
-	TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
 end
 
 -- Cartoon dizzy stars circling the head while stunned.
@@ -190,29 +191,36 @@ local function animateStars(h: BasePart)
 	end
 end
 
-local function onTap(h: BasePart, screen: Vector2)
-	local x, y = screenToFace(h, screen)
-	if not x then
-		return
+-- Is the screen point on the face (inside the projected head outline)?
+local function onFace(h: BasePart, screen: Vector2): boolean
+	local center, visible = screenOf(h.Position)
+	if not visible then
+		return false
 	end
-	-- nearest zone within reach of the click
-	local best, bestDist = nil, 0.14
-	for i, zone in MiniGames.Zones do
-		local d = math.sqrt((zone.x - x) ^ 2 + (zone.y - (y :: number)) ^ 2)
-		if d < bestDist then
+	local edge = screenOf(h.Position + h.CFrame.RightVector * h.Size.X * 0.5)
+	return (screen - center).Magnitude <= (edge - center).Magnitude * 1.1
+end
+
+local function onTap(h: BasePart, screen: Vector2)
+	local best, bestDist = nil, hitRadius()
+	for i, m in markers do
+		local p, visible = screenOf(m.Position)
+		local d = (p - screen).Magnitude
+		if visible and d < bestDist then
 			best, bestDist = i, d
 		end
 	end
-	-- a click on the face away from every zone still lands the hammer: that's a miss
-	local onFace = ((x - 0.5) / 0.5) ^ 2 + (((y :: number) - 0.5) / 0.5) ^ 2 <= 1.1
-	if not best and not onFace then
+	if not best and not onFace(h, screen) then
 		return
 	end
 	local result = tapper:tap(best or 0, os.clock())
 	if result == "stunned" then
 		return
 	end
-	bonk(faceToWorld(h, x, y :: number))
+	-- the mallet lands where you clicked: on the zone, or on the face nearby
+	local ray = workspace.CurrentCamera:ScreenPointToRay(screen.X, screen.Y)
+	local landing = if best then markers[best].Position else ray.Origin + ray.Direction * (h.Position - ray.Origin).Magnitude
+	bonk(landing)
 	if result == "hit" then
 		remotes.Rep:FireServer()
 	elseif result == "miss" then
@@ -230,9 +238,10 @@ end
 
 local function startStroke(h: BasePart)
 	clearMarkers()
-	stroke = MiniGames.Stroke.new(strokeSide)
+	local step = MiniGames.Stroke.CYCLE[strokeStep]
+	stroke = MiniGames.Stroke.new(step[1], step[2])
 	for i in stroke.points do
-		markers[i] = localPart("PathDot", markerSize(h, if i == 1 then 0.14 else 0.1), DIM, Enum.PartType.Ball)
+		markers[i] = localPart("PathDot", markerSize(h, if i == 1 then 0.12 else 0.09), DIM, Enum.PartType.Ball)
 	end
 end
 
@@ -241,7 +250,7 @@ local function refreshStroke()
 		local reached = i <= stroke.reached
 		local nextOne = i == stroke.reached + 1
 		m.Color = if reached then DONE elseif nextOne then GOLD else DIM
-		m.Transparency = if reached or nextOne then 0.05 else 0.5
+		m.Transparency = if reached or nextOne then 0.05 else 0.45
 	end
 	if os.clock() > statusUntil then
 		setStatus(Strings.get("workout.stroke_hint"), GOLD)
@@ -249,16 +258,23 @@ local function refreshStroke()
 end
 
 local function onStrokeMove(h: BasePart, screen: Vector2)
-	local x, y = screenToFace(h, screen)
-	if not x then
+	local nextDot = markers[stroke.reached + 1]
+	if not nextDot then
 		return
 	end
+	local p, visible = screenOf(nextDot.Position)
 	roller.Transparency = 0.1
-	roller.CFrame = CFrame.lookAt(faceToWorld(h, x, y :: number), faceToWorld(h, x, y :: number) + h.CFrame.LookVector)
-	if stroke:move(x, y) then
+	local ray = workspace.CurrentCamera:ScreenPointToRay(screen.X, screen.Y)
+	local pos = ray.Origin + ray.Direction * ((nextDot.Position - ray.Origin).Magnitude - 0.05)
+	roller.CFrame = CFrame.lookAt(pos, pos + h.CFrame.LookVector)
+	if not visible or (p - screen).Magnitude > hitRadius() then
+		return
+	end
+	local point = stroke.points[stroke.reached + 1]
+	if stroke:move(point[1], point[2]) then
 		remotes.Rep:FireServer()
 		setStatus(Strings.get("workout.stroke_done"), DONE, 0.8)
-		strokeSide = if strokeSide == "L" then "R" else "L"
+		strokeStep = strokeStep % #MiniGames.Stroke.CYCLE + 1
 		startStroke(h)
 		stroke:press() -- keep holding to flow into the next stroke
 	end
@@ -290,6 +306,14 @@ local function isPress(input: InputObject): boolean
 	return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
 end
 
+local function hideExtras()
+	hammerHead.Transparency = 1
+	hammerHandle.Transparency = 1
+	for _, star in stars do
+		star.Transparency = 1
+	end
+end
+
 function Workout.init()
 	folder = Instance.new("Folder")
 	folder.Name = "WorkoutParts"
@@ -302,12 +326,10 @@ function Workout.init()
 	hammerHandle.Material = Enum.Material.Wood
 	roller = localPart("GuaSha", Vector3.new(0.35, 0.18, 0.04), DONE)
 	roller.Transparency = 1
-	hammerHead.Transparency = 1
-	hammerHandle.Transparency = 1
 	for i = 1, 3 do
 		stars[i] = localPart("DizzyStar", Vector3.new(0.22, 0.22, 0.22), Color3.fromRGB(255, 230, 90), Enum.PartType.Ball)
-		stars[i].Transparency = 1
 	end
+	hideExtras()
 
 	local gui = Ui.screen("Workout", 3)
 	statusLabel = Ui.label({
@@ -334,11 +356,7 @@ function Workout.init()
 		local itemId = heldItem()
 		setMode(if itemId and h then MiniGames.kindOf(itemId) else nil, h)
 		if not h or not mode then
-			hammerHead.Transparency = 1
-			hammerHandle.Transparency = 1
-			for _, star in stars do
-				star.Transparency = 1
-			end
+			hideExtras()
 			return
 		end
 		if mode == "tap" then
@@ -346,14 +364,14 @@ function Workout.init()
 				setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.6)
 			end
 			for i, zone in MiniGames.Zones do
-				markers[i].CFrame = CFrame.new(faceToWorld(h, zone.x, zone.y))
+				markers[i].CFrame = CFrame.new(facePoint(h, zone.x, zone.y))
 			end
 			refreshTapper()
 			animateHammer(h)
 			animateStars(h)
 		else
 			for i, p in stroke.points do
-				markers[i].CFrame = CFrame.new(faceToWorld(h, p[1], p[2]))
+				markers[i].CFrame = CFrame.new(facePoint(h, p[1], p[2]))
 			end
 			refreshStroke()
 		end
