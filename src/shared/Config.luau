@@ -34,6 +34,10 @@ Config.Mult = {
 
 Config.ClickLimitPerSec = 12
 
+-- Heads are real meshes built on each client (client/HeadMesh). When true the old
+-- part-based cheeks/jaw (server/Face) are not created.
+Config.UseMeshHeads = true
+
 -- trainer seat: max sitting time, then a pause before the same player can sit again
 Config.SeatMaxSeconds = 90
 Config.SeatCooldownSeconds = 10

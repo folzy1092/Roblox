@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
+local Config = require(ReplicatedStorage.Shared.Config)
 local Looks = require(ReplicatedStorage.Shared.Looks)
 
 local TWEEN = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -88,6 +89,9 @@ local function apply(parts: Parts, rating: number, instant: boolean)
 end
 
 function Face.attach(player: Player)
+	if Config.UseMeshHeads then
+		return
+	end
 	local current: Parts? = nil
 
 	player:GetAttributeChangedSignal("Rating"):Connect(function()
