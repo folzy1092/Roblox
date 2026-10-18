@@ -6,11 +6,12 @@ local Progression = require(ReplicatedStorage.Shared.Progression)
 
 local RankLabel = {}
 
+-- Hung on the HumanoidRootPart: tier head swaps replace the Head part.
 local function build(player: Player, head: BasePart)
 	local gui = Instance.new("BillboardGui")
 	gui.Name = "RankLabel"
 	gui.Size = UDim2.fromScale(6, 1.8)
-	gui.StudsOffset = Vector3.new(0, 2.4, 0)
+	gui.StudsOffset = Vector3.new(0, 4.3, 0)
 	gui.MaxDistance = 100
 	gui.Adornee = head
 
@@ -72,8 +73,8 @@ function RankLabel.attach(player: Player)
 	local function onCharacter(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-		local head = character:WaitForChild("Head") :: BasePart
-		current = build(player, head)
+		local root = character:WaitForChild("HumanoidRootPart") :: BasePart
+		current = build(player, root)
 	end
 	player.CharacterAdded:Connect(onCharacter)
 	if player.Character then

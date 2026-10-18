@@ -37,6 +37,19 @@ Config.ClickLimitPerSec = 12
 -- Experimental procedural head mesh (client/HeadMesh). Off: quality not good enough yet,
 -- tier heads will come from ready-made models.
 Config.UseMeshHeads = false
+-- Ready-made catalog Dynamic Head asset ids per tier (index = Config.Tiers index).
+-- Swapped on the avatar by server/HeadSwap. Replace any id to change a tier's head.
+Config.TierHeads = {
+	136967365144969, -- Sub-3: [Recolorable] Fat Baby Head
+	113829053542009, -- Sub-5: Recolorable Derpy Chubby Stare Face
+	111537048429429, -- LTN: Tired Guy Neutral Face (Recolorable)
+	88262921856011, -- MTN: Friendly Guy Face (Recolorable)
+	92149876723195, -- HTN: Jawline Anime Male Head
+	127751361486358, -- Chadlite: Handsome Mog Man v2
+	127729810850806, -- Chad: True Sigma Mewing Mogger Face
+	14544640290, -- True Adam: GigaChad
+}
+
 -- Old part-based cheeks/jaw sculpt (server/Face). Off: looked like blocks.
 Config.UsePartSculpt = false
 
