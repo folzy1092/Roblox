@@ -139,7 +139,12 @@ local function bonk(zoneWorld: Vector3)
 	hammerUntil = os.clock() + 0.3
 end
 
--- Hammer comes in from the side, hits the zone, pulls back.
+-- X axis of the returned CFrame points along `dir` (cylinders are X-aligned).
+local function alongX(position: Vector3, dir: Vector3): CFrame
+	return CFrame.lookAt(position, position + dir) * CFrame.Angles(0, math.rad(90), 0)
+end
+
+-- Toy mallet swings in an arc around a grip below-right of the face, taps the zone, lifts back.
 local function animateHammer(h: BasePart)
 	local left = hammerUntil - os.clock()
 	if not hammerZone or left <= 0 then
@@ -148,13 +153,18 @@ local function animateHammer(h: BasePart)
 		return
 	end
 	local t = 1 - left / 0.3 -- 0..1
-	local reach = if t < 0.35 then 0.6 * (1 - t / 0.35) else 0.35 * ((t - 0.35) / 0.65)
-	local look = h.CFrame.LookVector
-	local right = h.CFrame.RightVector
-	local headPos = hammerZone + look * (0.12 + reach)
-	hammerHead.CFrame = CFrame.lookAt(headPos, headPos + right)
-	local handlePos = headPos + right * 0.55 - h.CFrame.UpVector * 0.15
-	hammerHandle.CFrame = CFrame.lookAt(handlePos, headPos)
+	local angle = if t < 0.4 then 1.1 * (1 - t / 0.4) else 0.55 * ((t - 0.4) / 0.6)
+	local look, right, up = h.CFrame.LookVector, h.CFrame.RightVector, h.CFrame.UpVector
+	local grip = hammerZone + look * 0.3 + right * 0.8 - up * 0.65
+	local strike = hammerZone + look * 0.14 -- head center when touching the face
+	local arm = strike - grip
+	local axis = arm:Cross(look).Unit -- positive angle lifts the head away from the face
+	local swing = CFrame.fromAxisAngle(axis, angle)
+	local headPos = grip + swing:VectorToWorldSpace(arm)
+	hammerHead.CFrame = alongX(headPos, swing:VectorToWorldSpace(-look))
+	local shaft = headPos - grip
+	hammerHandle.Size = Vector3.new(shaft.Magnitude, 0.06, 0.06)
+	hammerHandle.CFrame = alongX(grip + shaft / 2, shaft.Unit)
 	hammerHead.Transparency = 0
 	hammerHandle.Transparency = 0
 end
@@ -285,9 +295,10 @@ function Workout.init()
 	folder.Name = "WorkoutParts"
 	folder.Parent = workspace.CurrentCamera
 
-	hammerHead = localPart("HammerHead", Vector3.new(0.22, 0.22, 0.5), Color3.fromRGB(190, 195, 210))
-	hammerHead.Material = Enum.Material.Metal
-	hammerHandle = localPart("HammerHandle", Vector3.new(0.08, 0.08, 1.0), Color3.fromRGB(120, 80, 50))
+	-- small cartoon mallet: round red head, thin wooden shaft
+	hammerHead = localPart("HammerHead", Vector3.new(0.3, 0.2, 0.2), Color3.fromRGB(225, 65, 75), Enum.PartType.Cylinder)
+	hammerHead.Material = Enum.Material.SmoothPlastic
+	hammerHandle = localPart("HammerHandle", Vector3.new(0.8, 0.06, 0.06), Color3.fromRGB(150, 100, 60), Enum.PartType.Cylinder)
 	hammerHandle.Material = Enum.Material.Wood
 	roller = localPart("GuaSha", Vector3.new(0.35, 0.18, 0.04), DONE)
 	roller.Transparency = 1
