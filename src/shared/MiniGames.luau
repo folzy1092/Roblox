@@ -10,8 +10,8 @@ local KINDS = {
 
 -- One finished rep is worth this many clicks of the item.
 MiniGames.RepFactor = {
-	stroke = 5,
-	tap = 2,
+	stroke = 2.5, -- halved 2026-10-18: rewards felt too generous
+	tap = 1,
 }
 
 -- Mistakes cost this many base clicks of rating and Glow ("you hurt yourself").
