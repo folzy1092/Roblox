@@ -34,9 +34,11 @@ Config.Mult = {
 
 Config.ClickLimitPerSec = 12
 
--- Heads are real meshes built on each client (client/HeadMesh). When true the old
--- part-based cheeks/jaw (server/Face) are not created.
-Config.UseMeshHeads = true
+-- Experimental procedural head mesh (client/HeadMesh). Off: quality not good enough yet,
+-- tier heads will come from ready-made models.
+Config.UseMeshHeads = false
+-- Old part-based cheeks/jaw sculpt (server/Face). Off: looked like blocks.
+Config.UsePartSculpt = false
 
 -- trainer seat: max sitting time, then a pause before the same player can sit again
 Config.SeatMaxSeconds = 90

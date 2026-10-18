@@ -238,6 +238,9 @@ local function track(player: Player)
 end
 
 function HeadMesh.init()
+	if not require(ReplicatedStorage.Shared.Config).UseMeshHeads then
+		return
+	end
 	Players.PlayerAdded:Connect(track)
 	Players.PlayerRemoving:Connect(remove)
 	for _, player in Players:GetPlayers() do

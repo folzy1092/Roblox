@@ -89,7 +89,7 @@ local function apply(parts: Parts, rating: number, instant: boolean)
 end
 
 function Face.attach(player: Player)
-	if Config.UseMeshHeads then
+	if not Config.UsePartSculpt then
 		return
 	end
 	local current: Parts? = nil
