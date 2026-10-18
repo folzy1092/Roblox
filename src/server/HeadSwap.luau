@@ -46,6 +46,9 @@ local function apply(player: Player)
 end
 
 function HeadSwap.attach(player: Player)
+	if not Config.UseCatalogHeads then
+		return
+	end
 	player.CharacterAdded:Connect(function()
 		applied[player] = nil
 		if not player:HasAppearanceLoaded() then

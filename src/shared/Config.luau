@@ -37,6 +37,8 @@ Config.ClickLimitPerSec = 12
 -- Experimental procedural head mesh (client/HeadMesh). Off: quality not good enough yet,
 -- tier heads will come from ready-made models.
 Config.UseMeshHeads = false
+-- Catalog heads per tier: off — user didn't like them; own Blender heads are coming.
+Config.UseCatalogHeads = false
 -- Ready-made catalog Dynamic Head asset ids per tier (index = Config.Tiers index).
 -- Swapped on the avatar by server/HeadSwap. Replace any id to change a tier's head.
 Config.TierHeads = {
