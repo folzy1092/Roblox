@@ -192,19 +192,94 @@ def shape_preview(obj, k):
     bpy.data.objects.remove(sun)
 
 
+# skin texture and eyebrow asset per tier
+LOOKS = {
+    "sub3": ("old_caucasian_male", "eyebrow006"),
+    "sub5": ("middleage_caucasian_male", "eyebrow007"),
+    "ltn": ("young_caucasian_male2", "eyebrow010"),
+    "mtn": ("young_caucasian_male", "eyebrow012"),
+    "htn": ("young_caucasian_male", "eyebrow001"),
+    "chadlite": ("young_caucasian_male", "eyebrow004"),
+    "chad": ("young_caucasian_male", "eyebrow008"),
+    "trueadam": ("young_caucasian_male", "eyebrow009"),
+}
+
+
+def data_path(*parts):
+    _, _, LocationService = mpfb()
+    return os.path.join(LocationService.get_user_data(), *parts)
+
+
+def add_proxy(basemesh, mhclo, asset_type):
+    HumanService, _, _ = mpfb()
+    return HumanService.add_mhclo_asset(mhclo, basemesh, asset_type=asset_type, subdiv_levels=0,
+                                        set_up_rigging=False, interpolate_weights=False,
+                                        import_subrig=False, import_weights=False)
+
+
+def freeze(obj):
+    """Apply modifiers/shape keys of a fitted proxy and unparent it (keep world position)."""
+    mw = obj.matrix_world.copy()
+    obj.parent = None
+    obj.matrix_world = mw
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    if obj.data.shape_keys:
+        bpy.ops.object.shape_key_remove(all=True, apply_mix=True)
+    for mod in list(obj.modifiers):
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    # make sure faces point outward (MakeHuman eye proxies can come in inside-out)
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if "eyebrow" in obj.name:
+        # sink the brow card into the skin so its untextured edge doesn't show as a ribbon
+        bm.normal_update()
+        for v in bm.verts:
+            v.co -= v.normal * 0.0015
+    bm.to_mesh(obj.data)
+    bm.free()
+    print(f"[mh] {obj.name}: {len(obj.data.vertices)} verts, uv {[u.name for u in obj.data.uv_layers]}")
+
+
 def main():
+    sys.path.insert(0, os.path.dirname(__file__))
+    import mh_pack
+
     os.makedirs(OUT, exist_ok=True)
-    only = os.environ.get("MH_ONLY")  # e.g. MH_ONLY=1 builds just Sub-3 while iterating
+    only = os.environ.get("MH_ONLY")  # e.g. MH_ONLY=1,8 builds just those tiers while iterating
+    done = []
     for k, (name, macro, targets) in enumerate(TIERS, start=1):
         if only and str(k) not in only.split(","):
             continue
-        clear_scene()
+        for obj in list(bpy.data.objects):
+            if obj not in done and obj.type not in ("CAMERA", "LIGHT"):
+                bpy.data.objects.remove(obj, do_unlink=True)
+        skin_name, brow_name = LOOKS[name]
         basemesh = build_human(macro, targets)
-        cut, top = cut_head(basemesh)
-        basemesh.name = f"head_{k}_{name}"
-        print(f"[mh] {name}: head {len(basemesh.data.vertices)} verts, cut at {cut:.3f}")
         if os.environ.get("MH_SHAPE_PREVIEW"):
+            cut_head(basemesh)
             shape_preview(basemesh, k)
+            continue
+        eyes = add_proxy(basemesh, data_path("eyes", "low-poly", "low-poly.mhclo"), "Eyes")
+        brows = add_proxy(basemesh, data_path("eyebrows", brow_name, brow_name + ".mhclo"), "Eyebrows")
+        freeze(eyes)
+        freeze(brows)
+        cut_head(basemesh)
+        skin_dir = data_path("skins", skin_name)
+        skin_png = os.path.join(skin_dir, next(f for f in os.listdir(skin_dir) if f.endswith(".png") and "diffuse" in f))
+        head = mh_pack.pack(basemesh, eyes, brows, skin_png, data_path("eyes", "materials", "brown_eye.png"),
+                            data_path("eyebrows", brow_name, brow_name + ".png"), f"head_{k}_{name}", OUT)
+        head.name = f"head_{k}_{name}"
+        mh_pack.normalize(head)
+        mh_pack.export(head, os.path.join(OUT, f"head_{k}_{name}.fbx"))
+        print(f"[mh] {name}: {len(head.data.vertices)} verts, {len(head.data.polygons)} faces")
+        done.append(head)
+    if done:
+        mh_pack.render_row(done, os.path.join(OUT, "preview_mh.png"))
+        mh_pack.render_row(done, os.path.join(OUT, "preview_mh_side.png"), side=True)
+    print("[mh] all done")
 
 
 if __name__ == "__main__":

@@ -54,7 +54,9 @@ local function wear(player: Player)
 	part.Color = head.Color
 	-- fit the model to this avatar's head size (models are built in a 1-stud box)
 	local fit = Config.TierHeadFit
-	part.Size = head.Size * Vector3.new(fit.scale[1], fit.scale[2], fit.scale[3])
+	-- keep the model's proportions: scale uniformly so its height matches the avatar head
+	local uniform = head.Size.Y * fit.scale[2] / source.Size.Y
+	part.Size = source.Size * uniform * Vector3.new(fit.scale[1] / fit.scale[2], 1, fit.scale[3] / fit.scale[2])
 	local offset = CFrame.new(0, fit.offsetY, 0) * CFrame.Angles(0, math.rad(fit.rotateY), 0)
 
 	local weld = Instance.new("Weld")
