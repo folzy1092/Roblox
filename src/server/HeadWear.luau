@@ -48,7 +48,7 @@ local function wear(player: Player)
 	part:SetAttribute("Tier", tier)
 	part.Anchored = false
 	part.CanCollide = false
-	part.CanQuery = false
+	part.CanQuery = true -- exercise markers raycast onto it (still no collisions)
 	part.CanTouch = false
 	part.Massless = true
 	part.Color = head.Color

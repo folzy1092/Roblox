@@ -93,7 +93,24 @@ local function facePoint(h: BasePart, x: number, y: number): Vector3
 	end
 	local p = HeadShape.surface(x, y, fat, jaw)
 	local size = h.Size
-	return h.CFrame:PointToWorldSpace(Vector3.new(p.x * size.X / 2, p.y * size.Y / 2, p.z * size.Z / 2) * LIFT)
+	local guess = h.CFrame:PointToWorldSpace(Vector3.new(p.x * size.X / 2, p.y * size.Y / 2, p.z * size.Z / 2) * LIFT)
+	-- with a worn tier head model, snap the point onto its real surface with a ray
+	local worn = player.Character and player.Character:FindFirstChild("TierHead") :: BasePart?
+	if worn then
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Include
+		params.FilterDescendantsInstances = { worn }
+		local center = h.CFrame:PointToWorldSpace(Vector3.new(0, p.y * size.Y / 2, 0))
+		local outward = (guess - center)
+		if outward.Magnitude > 1e-3 then
+			local origin = center + outward.Unit * size.Magnitude * 1.5
+			local hit = workspace:Raycast(origin, center - origin, params)
+			if hit then
+				return hit.Position + hit.Normal * 0.03
+			end
+		end
+	end
+	return guess
 end
 
 local function screenOf(world: Vector3): (Vector2, boolean)
