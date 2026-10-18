@@ -1,5 +1,7 @@
--- Exercise panel for mini-game items (Gua Sha stroke, Bone Tapper taps).
--- Shows a drawn face on the right side of the screen; finished reps fire the Rep remote.
+-- Exercises on the avatar's own face (camera is on the face while the item is held, see FaceCamera).
+-- Bone Tapper: a zone lights up on your face; click/tap it and the hammer bonks it.
+-- Gua Sha: dots run along your cheek from chin to ear; hold and drag through them.
+-- Rules live in shared/MiniGames; every finished rep fires the Rep remote (server checks and pays).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -14,26 +16,31 @@ local player = Players.LocalPlayer
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local GOLD = Color3.fromRGB(255, 210, 70)
-local DIM = Color3.fromRGB(110, 80, 150) -- readable on any skin tone
+local DIM = Color3.fromRGB(150, 110, 200)
+local DONE = Color3.fromRGB(200, 130, 255)
+local SURFACE = 0.08 -- studs in front of the head's front face
 
 local Workout = {}
 
-local gui: ScreenGui
-local panel: Frame
-local face: Frame
-local title: TextLabel
-local status: TextLabel
-local layer: Frame -- zones / path dots live here (face-relative)
-local hammer: Frame
-local roller: Frame
+local folder: Folder -- client-only parts, under the camera
+local statusLabel: TextLabel
+local hammerHead: Part
+local hammerHandle: Part
+local roller: Part
 
 local mode: string? = nil
 local tapper: any = nil
 local stroke: any = nil
 local strokeSide = "L"
-local zoneButtons: { TextButton } = {}
-local pathDots: { Frame } = {}
+local markers: { Part } = {} -- zone markers (tap) or path dots (stroke)
 local statusUntil = 0
+local hammerUntil = 0
+local hammerZone: Vector3? = nil
+
+local function head(): BasePart?
+	local character = player.Character
+	return character and character:FindFirstChild("Head") :: BasePart?
+end
 
 local function heldItem(): string?
 	local character = player.Character
@@ -42,57 +49,78 @@ local function heldItem(): string?
 end
 
 local function setStatus(text: string, color: Color3, seconds: number?)
-	status.Text = text
-	status.TextColor3 = color
+	statusLabel.Text = text
+	statusLabel.TextColor3 = color
 	statusUntil = if seconds then os.clock() + seconds else math.huge
 end
 
-local function clearLayer()
-	for _, child in layer:GetChildren() do
-		child:Destroy()
+local function localPart(name: string, size: Vector3, color: Color3, shape: Enum.PartType?): Part
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Material = Enum.Material.Neon
+	p.Color = color
+	p.Size = size
+	if shape then
+		p.Shape = shape
 	end
-	table.clear(zoneButtons)
-	table.clear(pathDots)
+	p.Parent = folder
+	return p
 end
 
-local function dot(x: number, y: number, size: number, color: Color3): Frame
-	return Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(x, y),
-		Size = UDim2.fromScale(size, size),
-		BackgroundColor3 = color,
-		Parent = layer,
-	}, { Ui.corner(0.5), Ui.make("UIAspectRatioConstraint", { AspectRatio = 1 }) })
+-- Panel coordinates (0..1, x right, y down) <-> world point on the face plane.
+local function faceToWorld(h: BasePart, x: number, y: number): Vector3
+	local s = h.Size
+	return h.CFrame:PointToWorldSpace(Vector3.new((x - 0.5) * s.X, (0.5 - y) * s.Y, -s.Z * 0.5 - SURFACE))
 end
 
-local function shakeFace()
-	face.Position = UDim2.fromScale(0.5, 0.56)
-	TweenService:Create(face, TweenInfo.new(0.15, Enum.EasingStyle.Elastic), { Position = UDim2.fromScale(0.5, 0.55) }):Play()
+local function screenToFace(h: BasePart, screen: Vector2): (number?, number?)
+	local ray = workspace.CurrentCamera:ScreenPointToRay(screen.X, screen.Y) -- input positions exclude the top bar inset
+	local normal = h.CFrame.LookVector
+	local planePoint = h.CFrame:PointToWorldSpace(Vector3.new(0, 0, -h.Size.Z * 0.5 - SURFACE))
+	local denom = ray.Direction:Dot(normal)
+	if math.abs(denom) < 1e-4 then
+		return nil, nil
+	end
+	local t = (planePoint - ray.Origin):Dot(normal) / denom
+	if t < 0 then
+		return nil, nil
+	end
+	local hit = h.CFrame:PointToObjectSpace(ray.Origin + ray.Direction * t)
+	return hit.X / h.Size.X + 0.5, 0.5 - hit.Y / h.Size.Y
+end
+
+local function clearMarkers()
+	for _, m in markers do
+		m:Destroy()
+	end
+	table.clear(markers)
+end
+
+local function markerSize(h: BasePart, scale: number): Vector3
+	local d = math.min(h.Size.X, h.Size.Y) * scale
+	return Vector3.new(d, d, d)
 end
 
 ---------------------------------------------------------------- Bone Tapper
 
-local function swingHammer(x: number, y: number)
-	hammer.Visible = true
-	hammer.Position = UDim2.fromScale(x + 0.06, y + 0.02)
-	hammer.Rotation = -55
-	local down = TweenService:Create(hammer, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Rotation = 15 })
-	down:Play()
-	down.Completed:Once(function()
-		shakeFace()
-		TweenService:Create(hammer, TweenInfo.new(0.2), { Rotation = -40 }):Play()
-	end)
+local function startTapper(h: BasePart)
+	clearMarkers()
+	tapper = MiniGames.Tapper.new(math.floor(os.clock() * 1000) % 100000, os.clock())
+	for i in MiniGames.Zones do
+		markers[i] = localPart("Zone", markerSize(h, 0.16), DIM, Enum.PartType.Ball)
+	end
+	setStatus(Strings.get("workout.tap_hint"), GOLD, 2)
 end
 
-local function refreshZones()
-	for i, button in zoneButtons do
-		local lit = tapper and tapper.phase == "hit" and tapper.target == i
-		button.BackgroundColor3 = if lit then GOLD else DIM
-		button.BackgroundTransparency = if lit then 0 else 0.75
-		local outline = button:FindFirstChildOfClass("UIStroke")
-		if outline then
-			outline.Transparency = if lit then 0 else 0.6
-		end
+local function refreshTapper()
+	for i, m in markers do
+		local lit = tapper.phase == "hit" and tapper.target == i
+		m.Color = if lit then GOLD else DIM
+		m.Transparency = if lit then 0.05 + 0.15 * math.sin(os.clock() * 12) else 0.65
 	end
 	if tapper.phase == "rest" then
 		setStatus(Strings.get("workout.rest"), Color3.fromRGB(120, 220, 255))
@@ -103,233 +131,202 @@ local function refreshZones()
 	end
 end
 
-local function startTapper()
-	clearLayer()
-	tapper = MiniGames.Tapper.new(math.floor(os.clock() * 1000) % 100000, os.clock())
-	for i, zone in MiniGames.Zones do
-		local button = Ui.make("TextButton", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(zone.x, zone.y),
-			Size = UDim2.fromScale(0.17, 0.17),
-			Text = "",
-			AutoButtonColor = false,
-			BackgroundColor3 = DIM,
-			Parent = layer,
-		}, {
-			Ui.corner(0.5),
-			Ui.make("UIAspectRatioConstraint", { AspectRatio = 1 }),
-			Ui.make("UIStroke", { Color = GOLD, Thickness = 2 }),
-		})
-		button.Activated:Connect(function()
-			local result = tapper:tap(i, os.clock())
-			if result == "hit" then
-				swingHammer(zone.x, zone.y)
-				remotes.Rep:FireServer()
-			elseif result == "miss" then
-				setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.6)
-			elseif result == "rest_fail" then
-				swingHammer(zone.x, zone.y)
-			end
-			refreshZones()
-		end)
-		zoneButtons[i] = button
+local function bonk(zoneWorld: Vector3)
+	hammerZone = zoneWorld
+	hammerUntil = os.clock() + 0.3
+end
+
+-- Hammer comes in from the side, hits the zone, pulls back.
+local function animateHammer(h: BasePart)
+	local left = hammerUntil - os.clock()
+	if not hammerZone or left <= 0 then
+		hammerHead.Transparency = 1
+		hammerHandle.Transparency = 1
+		return
 	end
-	setStatus(Strings.get("workout.tap_hint"), GOLD, 2)
-	refreshZones()
+	local t = 1 - left / 0.3 -- 0..1
+	local reach = if t < 0.35 then 0.6 * (1 - t / 0.35) else 0.35 * ((t - 0.35) / 0.65)
+	local look = h.CFrame.LookVector
+	local right = h.CFrame.RightVector
+	local headPos = hammerZone + look * (0.12 + reach)
+	hammerHead.CFrame = CFrame.lookAt(headPos, headPos + right)
+	local handlePos = headPos + right * 0.55 - h.CFrame.UpVector * 0.15
+	hammerHandle.CFrame = CFrame.lookAt(handlePos, headPos)
+	hammerHead.Transparency = 0
+	hammerHandle.Transparency = 0
+end
+
+local function onTap(h: BasePart, screen: Vector2)
+	local x, y = screenToFace(h, screen)
+	if not x then
+		return
+	end
+	-- nearest zone within reach of the click
+	local best, bestDist = nil, 0.14
+	for i, zone in MiniGames.Zones do
+		local d = math.sqrt((zone.x - x) ^ 2 + (zone.y - (y :: number)) ^ 2)
+		if d < bestDist then
+			best, bestDist = i, d
+		end
+	end
+	if not best then
+		return
+	end
+	local zone = MiniGames.Zones[best]
+	local result = tapper:tap(best, os.clock())
+	if result == "hit" or result == "rest_fail" then
+		bonk(faceToWorld(h, zone.x, zone.y))
+	end
+	if result == "hit" then
+		remotes.Rep:FireServer()
+	elseif result == "miss" then
+		setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.6)
+	end
 end
 
 ---------------------------------------------------------------- Gua Sha
 
-local function refreshPath()
-	for i, d in pathDots do
-		local reached = stroke and i <= stroke.reached
-		d.BackgroundColor3 = if reached then Color3.fromRGB(190, 120, 255) else DIM
-		d.BackgroundTransparency = if reached then 0 else 0.35
-	end
-end
-
-local function startStroke()
-	clearLayer()
+local function startStroke(h: BasePart)
+	clearMarkers()
 	stroke = MiniGames.Stroke.new(strokeSide)
-	for i, p in stroke.points do
-		pathDots[i] = dot(p[1], p[2], if i == 1 then 0.1 else 0.07, DIM)
+	for i in stroke.points do
+		markers[i] = localPart("PathDot", markerSize(h, if i == 1 then 0.14 else 0.1), DIM, Enum.PartType.Ball)
 	end
-	-- start marker: big ring on the chin end
-	local start = stroke.points[1]
-	Ui.make("UIStroke", { Color = GOLD, Thickness = 3, Parent = pathDots[1] })
-	local _ = start
-	refreshPath()
 end
 
-local function facePoint(screen: Vector3): (number, number)
-	local rel = (Vector2.new(screen.X, screen.Y) - face.AbsolutePosition) / face.AbsoluteSize
-	return rel.X, rel.Y
+local function refreshStroke()
+	for i, m in markers do
+		local reached = i <= stroke.reached
+		local nextOne = i == stroke.reached + 1
+		m.Color = if reached then DONE elseif nextOne then GOLD else DIM
+		m.Transparency = if reached or nextOne then 0.05 else 0.5
+	end
+	if os.clock() > statusUntil then
+		setStatus(Strings.get("workout.stroke_hint"), GOLD)
+	end
 end
 
-local function onStrokeMove(x: number, y: number)
-	roller.Position = UDim2.fromScale(x, y)
+local function onStrokeMove(h: BasePart, screen: Vector2)
+	local x, y = screenToFace(h, screen)
+	if not x then
+		return
+	end
+	roller.Transparency = 0.1
+	roller.CFrame = CFrame.lookAt(faceToWorld(h, x, y :: number), faceToWorld(h, x, y :: number) + h.CFrame.LookVector)
 	if stroke:move(x, y) then
 		remotes.Rep:FireServer()
-		shakeFace()
-		setStatus(Strings.get("workout.stroke_done"), Color3.fromRGB(210, 160, 255), 0.8)
+		setStatus(Strings.get("workout.stroke_done"), DONE, 0.8)
 		strokeSide = if strokeSide == "L" then "R" else "L"
-		startStroke()
-		stroke:press() -- keep holding to go straight into the next stroke
+		startStroke(h)
+		stroke:press() -- keep holding to flow into the next stroke
 	end
-	refreshPath()
 end
 
----------------------------------------------------------------- panel
+---------------------------------------------------------------- loop / input
 
-local function build()
-	gui = Ui.screen("Workout", 3)
-	gui.IgnoreGuiInset = false -- input positions and GUI share the same space
-	panel = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.fromScale(0.985, 0.47),
-		Size = UDim2.fromScale(0.3, 0.62),
-		BackgroundColor3 = Color3.fromRGB(28, 26, 40),
-		BackgroundTransparency = 0.15,
-		Visible = false,
-		Parent = gui,
-	}, {
-		Ui.corner(0.06),
-		Ui.make("UIStroke", { Color = GOLD, Thickness = 2, Transparency = 0.3 }),
-		Ui.make("UIAspectRatioConstraint", { AspectRatio = 0.78 }),
-		Ui.make("UISizeConstraint", { MinSize = Vector2.new(220, 280) }),
-	})
-	title = Ui.label({
-		Size = UDim2.fromScale(0.9, 0.08),
-		Position = UDim2.fromScale(0.05, 0.02),
-		TextColor3 = GOLD,
-		Parent = panel,
-	})
-	status = Ui.label({
-		Size = UDim2.fromScale(0.9, 0.07),
-		Position = UDim2.fromScale(0.05, 0.11),
-		Font = Enum.Font.GothamBold,
-		Parent = panel,
-	})
-
-	face = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.55),
-		Size = UDim2.fromScale(0.78, 0.72),
-		BackgroundColor3 = Color3.fromRGB(245, 205, 170),
-		Active = true,
-		Parent = panel,
-	}, { Ui.corner(0.5), Ui.make("UIStroke", { Color = Color3.fromRGB(80, 60, 50), Thickness = 2 }) })
-	-- simple drawn features
-	for _, x in { 0.36, 0.64 } do
-		Ui.make("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(x, 0.4),
-			Size = UDim2.fromScale(0.09, 0.05),
-			BackgroundColor3 = Color3.fromRGB(40, 35, 45),
-			Parent = face,
-		}, { Ui.corner(0.5) })
-	end
-	Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.67),
-		Size = UDim2.fromScale(0.2, 0.025),
-		BackgroundColor3 = Color3.fromRGB(150, 70, 70),
-		Parent = face,
-	}, { Ui.corner(0.5) })
-
-	layer = Ui.make("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = face })
-
-	-- hammer: pivot at the bottom of the handle
-	hammer = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Size = UDim2.fromScale(0.06, 0.3),
-		BackgroundColor3 = Color3.fromRGB(120, 80, 50),
-		Visible = false,
-		ZIndex = 5,
-		Parent = face,
-	}, { Ui.corner(0.3) })
-	Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.05),
-		Size = UDim2.fromScale(4.2, 0.28),
-		BackgroundColor3 = Color3.fromRGB(190, 195, 210),
-		ZIndex = 6,
-		Parent = hammer,
-	}, { Ui.corner(0.2), Ui.make("UIStroke", { Color = Color3.fromRGB(70, 70, 80), Thickness = 2 }) })
-
-	-- gua sha roller follows the pointer while dragging
-	roller = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Size = UDim2.fromScale(0.16, 0.08),
-		BackgroundColor3 = Color3.fromRGB(190, 120, 255),
-		BackgroundTransparency = 0.15,
-		Visible = false,
-		ZIndex = 5,
-		Parent = face,
-	}, { Ui.corner(0.5), Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2 }) })
-
-	face.InputBegan:Connect(function(input)
-		if mode ~= "stroke" then
-			return
-		end
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			stroke:press()
-			roller.Visible = true
-			onStrokeMove(facePoint(input.Position))
-		end
-	end)
-	UserInputService.InputChanged:Connect(function(input)
-		if mode == "stroke" and stroke and stroke.pressed and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			onStrokeMove(facePoint(input.Position))
-		end
-	end)
-	UserInputService.InputEnded:Connect(function(input)
-		if mode == "stroke" and stroke and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-			stroke:release()
-			roller.Visible = false
-			refreshPath()
-		end
-	end)
-
-	gui.Parent = player:WaitForChild("PlayerGui")
-end
-
-local function setMode(newMode: string?, itemId: string?)
+local function setMode(newMode: string?, h: BasePart?)
 	if newMode == mode then
 		return
 	end
 	mode = newMode
-	hammer.Visible = false
-	roller.Visible = false
-	panel.Visible = newMode ~= nil
+	clearMarkers()
+	tapper, stroke = nil, nil
+	roller.Transparency = 1
+	statusLabel.Visible = newMode ~= nil
+	if not h then
+		return
+	end
 	if newMode == "tap" then
-		title.Text = Strings.get("item." .. itemId)
-		startTapper()
+		startTapper(h)
 	elseif newMode == "stroke" then
-		title.Text = Strings.get("item." .. itemId)
+		startStroke(h)
 		setStatus(Strings.get("workout.stroke_hint"), GOLD)
-		startStroke()
-	else
-		clearLayer()
-		tapper, stroke = nil, nil
 	end
 end
 
+local function isPress(input: InputObject): boolean
+	return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
+end
+
 function Workout.init()
-	build()
-	RunService.Heartbeat:Connect(function()
+	folder = Instance.new("Folder")
+	folder.Name = "WorkoutParts"
+	folder.Parent = workspace.CurrentCamera
+
+	hammerHead = localPart("HammerHead", Vector3.new(0.22, 0.22, 0.5), Color3.fromRGB(190, 195, 210))
+	hammerHead.Material = Enum.Material.Metal
+	hammerHandle = localPart("HammerHandle", Vector3.new(0.08, 0.08, 1.0), Color3.fromRGB(120, 80, 50))
+	hammerHandle.Material = Enum.Material.Wood
+	roller = localPart("GuaSha", Vector3.new(0.35, 0.18, 0.04), DONE)
+	roller.Transparency = 1
+	hammerHead.Transparency = 1
+	hammerHandle.Transparency = 1
+
+	local gui = Ui.screen("Workout", 3)
+	statusLabel = Ui.label({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.19),
+		Size = UDim2.fromScale(0.4, 0.06),
+		BackgroundColor3 = Color3.fromRGB(28, 26, 40),
+		BackgroundTransparency = 0.25,
+		Visible = false,
+		Parent = gui,
+	})
+	Ui.corner(0.3).Parent = statusLabel
+	gui.Parent = player:WaitForChild("PlayerGui")
+
+	RunService.RenderStepped:Connect(function()
+		local h = head()
 		local itemId = heldItem()
-		setMode(if itemId then MiniGames.kindOf(itemId) else nil, itemId)
-		if mode == "tap" and tapper then
+		setMode(if itemId and h then MiniGames.kindOf(itemId) else nil, h)
+		if not h or not mode then
+			hammerHead.Transparency = 1
+			hammerHandle.Transparency = 1
+			return
+		end
+		if mode == "tap" then
 			if tapper:update(os.clock()) == "timeout" then
 				setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.6)
 			end
-			refreshZones()
+			for i, zone in MiniGames.Zones do
+				markers[i].CFrame = CFrame.new(faceToWorld(h, zone.x, zone.y))
+			end
+			refreshTapper()
+			animateHammer(h)
+		else
+			for i, p in stroke.points do
+				markers[i].CFrame = CFrame.new(faceToWorld(h, p[1], p[2]))
+			end
+			refreshStroke()
 		end
-		-- face color follows the character's skin
-		local head = player.Character and player.Character:FindFirstChild("Head") :: BasePart?
-		if head and mode then
-			face.BackgroundColor3 = head.Color
+	end)
+
+	UserInputService.InputBegan:Connect(function(input, processed)
+		local h = head()
+		if processed or not h or not mode or not isPress(input) then
+			return
+		end
+		local screen = Vector2.new(input.Position.X, input.Position.Y)
+		if mode == "tap" then
+			onTap(h, screen)
+		else
+			stroke:press()
+			onStrokeMove(h, screen)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		local h = head()
+		if mode ~= "stroke" or not h or not stroke or not stroke.pressed then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			onStrokeMove(h, Vector2.new(input.Position.X, input.Position.Y))
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if mode == "stroke" and stroke and isPress(input) then
+			stroke:release()
+			roller.Transparency = 1
 		end
 	end)
 end

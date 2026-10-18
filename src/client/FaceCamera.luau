@@ -1,5 +1,7 @@
 -- Clicking with a held item: fires Click and smoothly moves the camera onto the face.
 -- Camera returns to normal after a short idle, on unequip, or on death.
+-- Mini-game items (gua sha, bone tapper) keep the camera on the face while held,
+-- because the exercise is done by clicking the avatar's face (see Workout).
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -35,6 +37,12 @@ local function trainerSeat(): BasePart?
 	return nil
 end
 
+local function heldMiniGame(): boolean
+	local character = player.Character
+	local tool = character and character:FindFirstChildOfClass("Tool")
+	return tool ~= nil and MiniGames.kindOf(tool.Name) ~= nil
+end
+
 local function stop()
 	if not zoomed then
 		return
@@ -56,15 +64,16 @@ local function start()
 	RunService:BindToRenderStep(BIND_NAME, Enum.RenderPriority.Camera.Value + 1, function(dt)
 		local h = head()
 		local seat = trainerSeat()
-		-- seated: stay on the mirror view; standing: return after a short idle
-		if not h or (not seat and os.clock() - lastClick > IDLE_RETURN) then
+		local exercise = heldMiniGame()
+		-- seated or exercising: stay; plain clicking: return after a short idle
+		if not h or (not seat and not exercise and os.clock() - lastClick > IDLE_RETURN) then
 			stop()
 			return
 		end
 		blend = math.min(blend + dt * 2, 1)
 		local eased = TweenService:GetValue(blend, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		local target
-		if seat then
+		if seat and not exercise then
 			-- over the left shoulder, so you see yourself and the mirror in front
 			local eye = seat.CFrame:PointToWorldSpace(Vector3.new(-3.5, 5.5, 6))
 			target = CFrame.lookAt(eye, seat.CFrame:PointToWorldSpace(Vector3.new(0, 2.4, -4.9)))
@@ -151,6 +160,13 @@ function FaceCamera.init()
 	if player.Character then
 		onCharacter(player.Character)
 	end
+
+	-- holding a mini-game item puts the camera on the face right away
+	RunService.Heartbeat:Connect(function()
+		if (heldMiniGame() or trainerSeat()) and not zoomed and head() then
+			start()
+		end
+	end)
 
 	local lastGlow = player:GetAttribute("Glow") or 0
 	player:GetAttributeChangedSignal("Glow"):Connect(function()
