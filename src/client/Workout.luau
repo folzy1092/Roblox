@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
+local Config = require(ReplicatedStorage.Shared.Config)
 local HeadShape = require(ReplicatedStorage.Shared.HeadShape)
 local Looks = require(ReplicatedStorage.Shared.Looks)
 local MiniGames = require(ReplicatedStorage.Shared.MiniGames)
@@ -80,9 +81,17 @@ local function localPart(name: string, size: Vector3, color: Color3, shape: Enum
 end
 
 -- Point on the local player's head surface for face coordinates (x -1..1, y +1..-1).
+-- With the procedural mesh off, the real head is the default one: use a neutral shape and
+-- squeeze the points into the visible face area (brows .. chin) so they don't sit too low.
 local function facePoint(h: BasePart, x: number, y: number): Vector3
-	local s = Looks.shape(player:GetAttribute("Rating") or 0)
-	local p = HeadShape.surface(x, y, s.fat, s.jaw)
+	local fat, jaw = 0, 0.3
+	if Config.UseMeshHeads then
+		local s = Looks.shape(player:GetAttribute("Rating") or 0)
+		fat, jaw = s.fat, s.jaw
+	else
+		y = y * 0.75 + 0.08
+	end
+	local p = HeadShape.surface(x, y, fat, jaw)
 	local size = h.Size
 	return h.CFrame:PointToWorldSpace(Vector3.new(p.x * size.X / 2, p.y * size.Y / 2, p.z * size.Z / 2) * LIFT)
 end
@@ -162,7 +171,9 @@ local function animateHammer(h: BasePart)
 	local t = 1 - left / 0.3 -- 0..1
 	local angle = if t < 0.4 then 1.1 * (1 - t / 0.4) else 0.55 * ((t - 0.4) / 0.6)
 	local look, right, up = h.CFrame.LookVector, h.CFrame.RightVector, h.CFrame.UpVector
-	local grip = hammerZone + look * 0.3 + right * 0.8 - up * 0.65
+	-- grip on the same side as the hit: right-half hits get the handle on the right, head left
+	local side = if h.CFrame:PointToObjectSpace(hammerZone).X >= 0 then 1 else -1
+	local grip = hammerZone + look * 0.3 + right * 0.8 * side - up * 0.65
 	local strike = hammerZone + look * 0.12
 	local arm = strike - grip
 	local axis = arm:Cross(look).Unit
