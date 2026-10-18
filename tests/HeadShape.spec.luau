@@ -1,6 +1,6 @@
 local HeadShape = require("../src/shared/HeadShape")
 local A = require("./assert")
-local truthy = A.truthy
+local truthy, eq = A.truthy, A.eq
 
 local tests = {}
 
@@ -36,6 +36,28 @@ tests["profile is smooth in between tiers"] = function()
 	local lo = math.min(HeadShape.halfWidth(-0.6, 0, 0), HeadShape.halfWidth(-0.6, 0, 1))
 	local hi = math.max(HeadShape.halfWidth(-0.6, 0, 0), HeadShape.halfWidth(-0.6, 0, 1))
 	truthy(a >= lo - 1e-6 and a <= hi + 1e-6, "halfway lies between")
+end
+
+tests["relief: nose sticks out on the front, not on the back"] = function()
+	truthy(HeadShape.relief(0, -0.15, 1, 0, 0.5) > 0.1, "nose on front")
+	eq(HeadShape.relief(0, -0.15, 0, 0, 0.5), 0)
+end
+
+tests["relief: chad has hollow cheeks, sub-3 has puffy ones"] = function()
+	local chad = HeadShape.relief(0.5, -0.35, 1, 0, 1)
+	local sub3 = HeadShape.relief(0.5, -0.35, 1, 1, 0)
+	truthy(chad < 0, "chad hollow")
+	truthy(sub3 > 0.05, "sub3 puffy")
+end
+
+tests["relief: cheekbones and chin grow with jaw"] = function()
+	truthy(HeadShape.relief(0.62, -0.02, 1, 0, 1) > HeadShape.relief(0.62, -0.02, 1, 0, 0), "cheekbones")
+	truthy(HeadShape.relief(0.2, -0.82, 1, 0, 1) > HeadShape.relief(0.2, -0.82, 1, 0, 0), "chin")
+end
+
+tests["relief: brow ridge stronger on chad, eye sockets sink"] = function()
+	truthy(HeadShape.relief(0.33, 0.27, 1, 0, 1) > HeadShape.relief(0.33, 0.27, 1, 0, 0), "brow")
+	truthy(HeadShape.relief(0.33, 0.11, 1, 0, 1) < 0, "eye socket")
 end
 
 return tests
