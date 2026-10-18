@@ -59,21 +59,24 @@ local function apply(parts: Parts, rating: number, instant: boolean)
 	-- Sub-3: puffy cheeks sunk half into the head, soft double chin, no jawline.
 	local f = s.fat
 	local cheek = Vector3.new(h.X * 0.34, h.Y * 0.42, h.Z * 0.5) * (0.35 + 0.65 * f)
-	local chin = Vector3.new(h.X * 0.62, h.Y * 0.26, h.Z * 0.5) * (0.3 + 0.7 * f)
+	local chin = Vector3.new(h.X * 0.55, h.Y * 0.22, h.Z * 0.45) * (0.3 + 0.7 * f)
 	local jawWidth = h.X * (0.6 + 0.35 * s.jaw)
-	local jawHeight = h.Y * 0.22 * s.jaw
+	-- jaw only shows once it has really grown (a sliver looked like a stray plate)
+	local jawHeight = h.Y * (0.08 + 0.18 * s.jaw)
 
 	local targets = {
 		{ parts.cheekL, cheek, CFrame.new(-h.X * 0.31, -h.Y * 0.16, -h.Z * 0.16), f },
 		{ parts.cheekR, cheek, CFrame.new(h.X * 0.31, -h.Y * 0.16, -h.Z * 0.16), f },
-		{ parts.chin, chin, CFrame.new(0, -h.Y * 0.44, -h.Z * 0.1), f },
-		{ parts.jaw, Vector3.new(jawWidth, jawHeight, h.Z * 0.7), CFrame.new(0, -h.Y * 0.4, -h.Z * 0.04), s.jaw },
+		-- under the face, forward of the neck so it doesn't sink into the torso
+		{ parts.chin, chin, CFrame.new(0, -h.Y * 0.38, -h.Z * 0.2), f },
+		{ parts.jaw, Vector3.new(jawWidth, jawHeight, h.Z * 0.7), CFrame.new(0, -h.Y * 0.4, -h.Z * 0.04), s.jaw, 0.15 },
 	}
 	for _, target in targets do
 		local part, size, offset, amount = target[1], target[2], target[3], target[4]
+		local minVisible = target[5] or MIN_VISIBLE
 		local weld = part:FindFirstChild("SculptWeld") :: Weld
 		weld.C0 = offset
-		local visible = amount > MIN_VISIBLE
+		local visible = amount > minVisible
 		local goalSize = if visible then size else Vector3.new(0.05, 0.05, 0.05)
 		part.Transparency = if visible then 0 else 1
 		if instant then

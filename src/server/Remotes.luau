@@ -1,7 +1,7 @@
 -- Creates RemoteEvents in ReplicatedStorage.Remotes. Client waits for them by name.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local NAMES = { "Click", "Rep", "Fail", "Buy", "Equip", "Rebirth" }
+local NAMES = { "Click", "Rep", "Fail", "Buy", "Equip", "Rebirth", "Dev" }
 
 local folder = Instance.new("Folder")
 folder.Name = "Remotes"

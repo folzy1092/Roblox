@@ -1,6 +1,7 @@
 -- Client entry.
 local Players = game:GetService("Players")
 
+local DevPanel = require(script.Parent.DevPanel)
 local Duels = require(script.Parent.Duels)
 local FaceCamera = require(script.Parent.FaceCamera)
 local Guide = require(script.Parent.Guide)
@@ -32,3 +33,4 @@ FaceCamera.init()
 MirrorView.init()
 Guide.init()
 Workout.init()
+DevPanel.init()

@@ -136,6 +136,34 @@ Remotes.Equip.OnServerEvent:Connect(function(player, itemId)
 	PlayerData.publish(player)
 end)
 
+-- Studio-only test shortcuts (DEV panel). Ignored in a published game.
+Remotes.Dev.OnServerEvent:Connect(function(player, action, value)
+	if not RunService:IsStudio() then
+		return
+	end
+	local data = PlayerData.get(player)
+	if not data then
+		return
+	end
+	if action == "tier" and typeof(value) == "number" and Config.Tiers[value] then
+		-- enough rebirths that this tier is reachable, rating in the middle of the tier
+		data.rebirths = math.min(value - 1, Config.MaxRebirths)
+		local low = Config.Tiers[value].min
+		local nextTier = Config.Tiers[value + 1]
+		local high = if nextTier then nextTier.min else Config.TopRating
+		data.rating = math.floor((low + high) / 2)
+	elseif action == "max" then
+		data.rebirths = Config.MaxRebirths
+		data.rating = Config.TopRating
+	elseif action == "glow" then
+		data.glow += 50000
+	elseif action == "reset" then
+		local fresh = Progression.defaultData()
+		data.rating, data.glow, data.rebirths = fresh.rating, fresh.glow, fresh.rebirths
+	end
+	PlayerData.publish(player)
+end)
+
 Remotes.Rebirth.OnServerEvent:Connect(function(player)
 	local data = PlayerData.get(player)
 	if not data or not Progression.canRebirth(data) then
