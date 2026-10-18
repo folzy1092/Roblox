@@ -1,39 +1,46 @@
--- Generates the lobby: grass terrain, plaza, mirrors, trainer seats, nature and decor.
+-- Generates the lobby: a round plaza with a fountain, themed trainer halls around it
+-- (mirror walls, arches, pergola roofs), the duel arena, paths, nature and lighting.
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
+
+local Kit = require(script.Parent.map.Kit)
+local Flora = require(script.Parent.map.Flora)
+local Props = require(script.Parent.map.Props)
+
+local part = Kit.part
+local disc = Kit.disc
 
 local MapBuilder = {}
 
 local rng = Random.new(20261017) -- fixed seed: same map every server
 
-local PLAZA_SIZE = Vector3.new(64, 4, 64)
--- Sized for 32 players: ~25 trainer seats, 2 duel stations, room to walk around.
+-- Sized for 32 players: 23 trainer seats in 5 halls, 2 duel stations, room to walk around.
+local PLAZA_RADIUS = 36
 local ARENA_CENTER = Vector3.new(0, 0, 125)
 local ARENA_RADIUS = 36
 local WORLD_RADIUS = 190 -- invisible wall; cliffs start right behind it
 local POND = Vector3.new(-95, 0, 85)
 local TITLE_Z = -118
+local SPAWN = Vector3.new(0, 0.6, -21)
+local FLOOR_TOP = 0.8 -- hall floors are raised platforms
 
--- Every trainer seat on the map: item, VIP?, position (x, z).
-local TRAINER_SPOTS = {}
-local function row(itemId: string, normal: { Vector2 }, vip: { Vector2 })
-	for _, p in normal do
-		table.insert(TRAINER_SPOTS, { itemId, false, p.X, p.Y })
-	end
-	for _, p in vip do
-		table.insert(TRAINER_SPOTS, { itemId, true, p.X, p.Y })
-	end
-end
--- west: gum, east: mewing (starter items, most seats)
-row("gum", { Vector2.new(-72, -36), Vector2.new(-72, -22), Vector2.new(-72, -8), Vector2.new(-72, 6) },
-	{ Vector2.new(-72, 20), Vector2.new(-72, 34) })
-row("mewing", { Vector2.new(72, -36), Vector2.new(72, -22), Vector2.new(72, -8), Vector2.new(72, 6) },
-	{ Vector2.new(72, 20), Vector2.new(72, 34) })
--- south row: jaw ball (left of the path) and gua sha (right)
-row("jawball", { Vector2.new(-62, -72), Vector2.new(-48, -72), Vector2.new(-34, -72) }, { Vector2.new(-20, -72) })
-row("guasha", { Vector2.new(34, -72), Vector2.new(48, -72), Vector2.new(62, -72) }, { Vector2.new(20, -72) })
--- north-east: bone tapper (endgame)
-row("bonetapper", { Vector2.new(58, 72), Vector2.new(72, 72) }, { Vector2.new(86, 72) })
+local GOLD = Color3.fromRGB(255, 200, 40)
+local CREAM = Color3.fromRGB(240, 230, 218)
+
+-- Trainer halls. Each hall faces the plaza; seats sit along its mirror walls.
+-- size = (width, depth); layout picks the seat template below.
+local ZONES = {
+	{ id = "gum", title = "Gum Gym", color = Color3.fromRGB(255, 105, 175), center = Vector2.new(-80, 0),
+		size = Vector2.new(36, 34), layout = "six", landmark = "dumbbell" },
+	{ id = "mewing", title = "Mewing Studio", color = Color3.fromRGB(70, 185, 255), center = Vector2.new(80, 0),
+		size = Vector2.new(36, 34), layout = "six", landmark = "dumbbell" },
+	{ id = "jawball", title = "Jaw Ball Court", color = Color3.fromRGB(255, 145, 50), center = Vector2.new(-46, -80),
+		size = Vector2.new(30, 26), layout = "four", landmark = "ball" },
+	{ id = "guasha", title = "Gua Sha Spa", color = Color3.fromRGB(50, 205, 150), center = Vector2.new(46, -80),
+		size = Vector2.new(30, 26), layout = "four", landmark = "palms" },
+	{ id = "bonetapper", title = "Bone Tapper Lab", color = Color3.fromRGB(160, 100, 255), center = Vector2.new(66, 66),
+		size = Vector2.new(32, 22), layout = "three", landmark = "obelisk" },
+}
 
 local TRAINER_TITLES = {
 	gum = "Gum Trainer",
@@ -43,32 +50,60 @@ local TRAINER_TITLES = {
 	bonetapper = "Bone Tapper Trainer",
 }
 
-local function part(props: { [string]: any }): Part
-	local p = Instance.new("Part")
-	p.Anchored = true
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	for key, value in props do
-		(p :: any)[key] = value
+local BACK, LEFT, RIGHT = Vector3.new(0, 0, -1), Vector3.new(-1, 0, 0), Vector3.new(1, 0, 0)
+
+-- Seat templates in hall space: x across, z toward the entrance (+z = plaza side).
+-- Each seat faces a mirror on the wall in `facing` direction. Counts: six = 4 + 2 VIP,
+-- four = 3 + 1 VIP, three = 2 + 1 VIP (same as before the redesign).
+local function stations(zone): { { any } }
+	local w, d = zone.size.X / 2, zone.size.Y / 2
+	local backZ, sideX = -d + 4.4, w - 4.4
+	if zone.layout == "six" then
+		return {
+			{ -sideX, -1, LEFT, false }, { -sideX, 9, LEFT, false },
+			{ sideX, -1, RIGHT, false }, { sideX, 9, RIGHT, false },
+			{ -6, backZ, BACK, true }, { 6, backZ, BACK, true },
+		}
+	elseif zone.layout == "four" then
+		return {
+			{ -sideX, 1, LEFT, false }, { sideX, 1, RIGHT, false },
+			{ -5, backZ, BACK, false }, { 5, backZ, BACK, true },
+		}
 	end
-	return p
+	return { { -10, backZ, BACK, false }, { 10, backZ, BACK, false }, { 0, backZ, BACK, true } }
 end
 
-local function sign(parent: Instance, text: string, color: Color3)
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromScale(8, 1.5)
-	gui.StudsOffset = Vector3.new(0, 10, 0)
-	gui.MaxDistance = 80
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Text = text
-	label.TextScaled = true
-	label.Font = Enum.Font.FredokaOne
-	label.TextColor3 = color
-	label.TextStrokeTransparency = 0.3
-	label.Parent = gui
-	gui.Parent = parent
+-- Hall frame: origin at the hall center, -Z points away from the plaza.
+local function zoneFrame(zone): CFrame
+	local c = Vector3.new(zone.center.X, 0, zone.center.Y)
+	return CFrame.lookAt(c, c + c.Unit)
+end
+
+-- Walkways: from the plaza edge to each hall entrance, the title sign and the arena.
+local PATHS = {}
+for _, zone in ZONES do
+	local frame = zoneFrame(zone)
+	local dir = zone.center.Unit
+	local entrance = (frame * CFrame.new(0, 0, zone.size.Y / 2 + 1)).Position
+	table.insert(PATHS, { dir * (PLAZA_RADIUS - 1), Vector2.new(entrance.X, entrance.Z), 10 })
+end
+table.insert(PATHS, { Vector2.new(0, -PLAZA_RADIUS + 1), Vector2.new(0, TITLE_Z + 3), 10 })
+table.insert(PATHS, { Vector2.new(0, PLAZA_RADIUS - 1), Vector2.new(0, ARENA_CENTER.Z - ARENA_RADIUS), 10 })
+
+local PATH_ANGLES = {}
+for _, path in PATHS do
+	table.insert(PATH_ANGLES, math.atan2(path[1].Y, path[1].X))
+end
+
+-- true when angle `a` (radians) on the plaza ring is at least `gap` away from every path
+local function clearOfPaths(a: number, gap: number): boolean
+	for _, pa in PATH_ANGLES do
+		local diff = math.abs((a - pa + math.pi) % (2 * math.pi) - math.pi)
+		if diff < gap then
+			return false
+		end
+	end
+	return true
 end
 
 -- Framed mirror. `cframe` front (-Z) faces the viewer. The client draws a live
@@ -123,19 +158,20 @@ local function mirror(parent: Instance, cframe: CFrame, size: Vector2, glow: Col
 end
 
 -- One trainer = platform + single Seat facing a mirror. Seat holds one player at a time.
-local function trainer(folder: Folder, itemId: string, title: string, vip: boolean, position: Vector3)
+-- `cframe` is the platform center; its look direction points at the mirror.
+local function trainer(folder: Folder, itemId: string, title: string, vip: boolean, cframe: CFrame, zoneColor: Color3)
 	local model = Instance.new("Model")
 	model.Name = `{itemId}{if vip then "_VIP" else ""}`
 	model:SetAttribute("ItemId", itemId)
 	model:SetAttribute("Vip", vip)
 
-	local color = if vip then Color3.fromRGB(255, 200, 40) else Color3.fromRGB(90, 200, 120)
+	local color = if vip then GOLD else zoneColor
 	model:SetAttribute("Color", color)
 	local base = part({
 		Name = "Base",
 		Size = Vector3.new(8, 0.6, 8),
-		Position = position,
-		Color = Color3.fromRGB(60, 56, 70),
+		CFrame = cframe,
+		Color = zoneColor:Lerp(Color3.fromRGB(30, 26, 40), 0.75),
 		Material = Enum.Material.SmoothPlastic,
 	})
 	base.Parent = model
@@ -144,7 +180,7 @@ local function trainer(folder: Folder, itemId: string, title: string, vip: boole
 	part({
 		Name = "Trim",
 		Size = Vector3.new(8.4, 0.3, 8.4),
-		Position = position - Vector3.new(0, 0.2, 0),
+		CFrame = cframe * CFrame.new(0, -0.2, 0),
 		Color = color,
 		Material = Enum.Material.SmoothPlastic,
 		CanCollide = false,
@@ -154,7 +190,7 @@ local function trainer(folder: Folder, itemId: string, title: string, vip: boole
 	seat.Name = "Seat"
 	seat.Anchored = true
 	seat.Size = Vector3.new(3, 1, 3)
-	seat.CFrame = CFrame.new(position + Vector3.new(0, 0.8, 1.5))
+	seat.CFrame = cframe * CFrame.new(0, 0.8, 1.5)
 	seat.Color = color
 	seat.Material = Enum.Material.Fabric
 	seat.TopSurface = Enum.SurfaceType.Smooth
@@ -164,7 +200,7 @@ local function trainer(folder: Folder, itemId: string, title: string, vip: boole
 	part({
 		Name = "Backrest",
 		Size = Vector3.new(3, 3, 0.5),
-		Position = position + Vector3.new(0, 2.5, 3.1),
+		CFrame = cframe * CFrame.new(0, 2.5, 3.1),
 		Color = color,
 		Material = Enum.Material.Fabric,
 	}).Parent = model
@@ -178,8 +214,7 @@ local function trainer(folder: Folder, itemId: string, title: string, vip: boole
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = seat
 
-	local mirrorPos = position + Vector3.new(0, 3.6, -3.4)
-	mirror(model, CFrame.lookAt(mirrorPos, mirrorPos + Vector3.zAxis), Vector2.new(4.4, 5.6), color)
+	mirror(model, cframe * CFrame.new(0, 3.6, -3.4) * CFrame.Angles(0, math.pi, 0), Vector2.new(4.4, 5.6), color)
 
 	local sparkles = Instance.new("ParticleEmitter")
 	sparkles.Name = "ActiveSparkles"
@@ -194,7 +229,10 @@ local function trainer(folder: Folder, itemId: string, title: string, vip: boole
 	sparkles.Enabled = false
 	sparkles.Parent = base
 
-	sign(base, if vip then `VIP {title}` else title, color)
+	-- the hall arch names the trainer; only VIP seats get their own sign
+	if vip then
+		Kit.sign(base, "VIP", GOLD, 10, 4)
+	end
 
 	local status = Instance.new("BillboardGui")
 	status.Name = "Status"
@@ -217,17 +255,205 @@ local function trainer(folder: Folder, itemId: string, title: string, vip: boole
 	model.Parent = folder
 end
 
+-- Landmark sculpture outside a hall entrance.
+local function landmark(parent: Instance, kind: string, cframe: CFrame, color: Color3)
+	if kind == "dumbbell" then
+		Props.dumbbell(parent, cframe * CFrame.Angles(0, math.rad(90), 0), color)
+	elseif kind == "palms" then
+		Flora.palm(parent, rng, cframe.Position, 1.1)
+		Flora.palm(parent, rng, (cframe * CFrame.new(0, 0, -5)).Position, 0.9)
+	elseif kind == "ball" then
+		part({ Name = "Plinth", Size = Vector3.new(4, 2, 4), CFrame = cframe * CFrame.new(0, 1, 0), Color = CREAM,
+			Material = Enum.Material.Marble }).Parent = parent
+		part({ Name = "JawBall", Shape = Enum.PartType.Ball, Size = Vector3.one * 4.4, CFrame = cframe * CFrame.new(0, 4.2, 0),
+			Color = color, Material = Enum.Material.SmoothPlastic }).Parent = parent
+	else -- obelisk
+		part({ Name = "Plinth", Size = Vector3.new(4, 1.4, 4), CFrame = cframe * CFrame.new(0, 0.7, 0), Color = CREAM,
+			Material = Enum.Material.Marble }).Parent = parent
+		part({ Name = "Obelisk", Size = Vector3.new(2, 9, 2), CFrame = cframe * CFrame.new(0, 5.9, 0), Color = color,
+			Material = Enum.Material.SmoothPlastic }).Parent = parent
+		local tip = part({ Name = "ObeliskTip", Size = Vector3.one * 1.6, CanCollide = false, Color = GOLD,
+			Material = Enum.Material.Neon,
+			CFrame = cframe * CFrame.new(0, 11.2, 0) * CFrame.Angles(math.rad(45), 0, math.rad(45)) })
+		Kit.light(tip, GOLD, 14, 1.2)
+		tip.Parent = parent
+	end
+end
+
+-- A trainer hall: raised floor with colored border, mirror walls on three sides,
+-- pergola roof, entrance arch with the hall name, planters and a landmark outside.
+local function hall(zonesFolder: Folder, trainers: Folder, zone)
+	local model = Instance.new("Model")
+	model.Name = `{zone.id}Hall`
+	local frame = zoneFrame(zone)
+	local W, D = zone.size.X, zone.size.Y
+	local color = zone.color
+	local floorColor = color:Lerp(Color3.new(1, 1, 1), 0.82)
+	local wallColor = color:Lerp(Color3.new(1, 1, 1), 0.55)
+	local darkColor = color:Lerp(Color3.fromRGB(30, 26, 40), 0.55)
+	local function at(x: number, y: number, z: number): CFrame
+		return frame * CFrame.new(x, y, z)
+	end
+	local function block(name: string, size: Vector3, cf: CFrame, c: Color3, material: Enum.Material?, extra: { [string]: any }?)
+		local props = { Name = name, Size = size, CFrame = cf, Color = c, Material = material or Enum.Material.SmoothPlastic }
+		for k, v in extra or {} do
+			props[k] = v
+		end
+		local p = part(props)
+		p.Parent = model
+		return p
+	end
+
+	block("Border", Vector3.new(W + 3.4, 0.5, D + 3.4), at(0, 0.25, 0), color)
+	block("Floor", Vector3.new(W + 1, FLOOR_TOP, D + 1), at(0, FLOOR_TOP / 2, 0), floorColor, Enum.Material.Marble)
+	block("EntranceGlow", Vector3.new(W + 3.4, 0.12, 0.5), at(0, 0.56, D / 2 + 1.45), color, Enum.Material.Neon,
+		{ CanCollide = false })
+	-- floor emblem in the open middle of the hall
+	local emblem = at(0, 0, D / 2 - 8)
+	disc({ Name = "Emblem", Color = color, Material = Enum.Material.SmoothPlastic },
+		emblem.Position + Vector3.new(0, FLOOR_TOP + 0.04, 0), 5, 0.1).Parent = model
+	disc({ Name = "Emblem", Color = floorColor, Material = Enum.Material.SmoothPlastic },
+		emblem.Position + Vector3.new(0, FLOOR_TOP + 0.06, 0), 3.9, 0.1).Parent = model
+	block("Emblem", Vector3.new(2.6, 0.1, 2.6), emblem * CFrame.new(0, FLOOR_TOP + 0.07, 0) * CFrame.Angles(0, math.rad(45), 0),
+		color, Enum.Material.Neon, { CanCollide = false })
+
+	-- walls behind the mirrors, with a glowing top edge
+	local wallH = 9
+	local wallY = FLOOR_TOP + wallH / 2
+	block("Wall", Vector3.new(W + 0.8, wallH, 1), at(0, wallY, -D / 2 + 0.1), wallColor)
+	block("WallGlow", Vector3.new(W + 0.8, 0.3, 1.1), at(0, FLOOR_TOP + wallH + 0.15, -D / 2 + 0.1), color, Enum.Material.Neon,
+		{ CanCollide = false })
+	for _, side in { -1, 1 } do
+		local x = side * (W / 2 - 0.1)
+		block("Wall", Vector3.new(1, wallH, D + 0.4), at(x, wallY, -0.2), wallColor)
+		block("WallGlow", Vector3.new(1.1, 0.3, D + 0.4), at(x, FLOOR_TOP + wallH + 0.15, -0.2), color, Enum.Material.Neon,
+			{ CanCollide = false })
+		-- arch pillar with a glowing cap
+		block("Pillar", Vector3.new(2.2, 12.4, 2.2), at(side * (W / 2 + 0.1), 6.2, D / 2 + 0.3), darkColor)
+		local cap = block("PillarCap", Vector3.one * 1.6, at(side * (W / 2 + 0.1), 13.2, D / 2 + 0.3), GOLD, Enum.Material.Neon,
+			{ Shape = Enum.PartType.Ball, CanCollide = false })
+		Kit.light(cap, color, 16, 1.2)
+		-- planter at each front corner
+		Props.planter(model, rng, (frame * CFrame.new(side * (W / 2 + 3.6), 0, D / 2 + 3.6)).Position, 1.8, color)
+	end
+
+	-- pergola roof: slats let light (and the camera) through
+	local beams = math.floor(D / 4)
+	for i = 1, beams do
+		block("RoofBeam", Vector3.new(W + 0.6, 0.5, 0.8), at(0, FLOOR_TOP + wallH + 0.55, -D / 2 + i * D / (beams + 1)), CREAM,
+			Enum.Material.WoodPlanks)
+	end
+
+	-- entrance arch with the hall name on both sides
+	local header = block("ArchSign", Vector3.new(W + 3, 2.8, 1.2), at(0, 11.4, D / 2 + 0.3), darkColor)
+	Kit.faceText(header, Enum.NormalId.Back, string.upper(zone.title), Color3.new(1, 1, 1), color:Lerp(Color3.new(0, 0, 0), 0.5))
+	Kit.faceText(header, Enum.NormalId.Front, string.upper(zone.title), Color3.new(1, 1, 1), color:Lerp(Color3.new(0, 0, 0), 0.5))
+	block("ArchGlow", Vector3.new(W + 3.2, 0.3, 1.3), at(0, 9.85, D / 2 + 0.3), color, Enum.Material.Neon, { CanCollide = false })
+
+	landmark(model, zone.landmark, at(W / 2 + 7, 0, D / 2 - 6), color)
+
+	for _, s in stations(zone) do
+		local localPos = Vector3.new(s[1], FLOOR_TOP + 0.3, s[2])
+		local cf = frame * CFrame.lookAt(localPos, localPos + s[3])
+		trainer(trainers, zone.id, TRAINER_TITLES[zone.id], s[4], cf, color)
+	end
+
+	model.Parent = zonesFolder
+end
+
+-- Round plaza: tiled star pattern, fountain with the glow crystal, four big mirrors,
+-- planters, benches and lamps between the walkways.
+local function plaza()
+	local folder = Instance.new("Folder")
+	folder.Name = "Lobby"
+	local o = Vector3.zero
+	disc({ Name = "PlazaGlow", Color = Color3.fromRGB(255, 120, 180), Material = Enum.Material.Neon }, o + Vector3.new(0, 0.3, 0),
+		PLAZA_RADIUS + 0.7, 0.3).Parent = folder
+	disc({ Name = "PlazaFloor", Color = CREAM, Material = Enum.Material.Marble }, o + Vector3.new(0, 0.4, 0), PLAZA_RADIUS, 0.4)
+		.Parent = folder
+	disc({ Name = "PlazaBand", Color = Color3.fromRGB(190, 160, 235), Material = Enum.Material.SmoothPlastic },
+		o + Vector3.new(0, 0.45, 0), PLAZA_RADIUS - 5, 0.1).Parent = folder
+	disc({ Name = "PlazaInner", Color = CREAM, Material = Enum.Material.Marble }, o + Vector3.new(0, 0.5, 0), PLAZA_RADIUS - 6.5,
+		0.1).Parent = folder
+	-- compass-star rays: long pink / short gold
+	for i = 0, 15 do
+		local a = i / 16 * math.pi * 2
+		local long = i % 2 == 0
+		local length = if long then 17 else 9
+		local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+		local pos = dir * (11 + length / 2) + Vector3.new(0, 0.53, 0)
+		part({
+			Name = "PlazaRay",
+			Size = Vector3.new(if long then 2.6 else 1.6, 0.06, length),
+			CFrame = CFrame.lookAt(pos, pos + dir),
+			Color = if long then Color3.fromRGB(255, 140, 190) else Color3.fromRGB(255, 205, 110),
+			Material = Enum.Material.SmoothPlastic,
+			CanCollide = false,
+		}).Parent = folder
+	end
+
+	Props.fountain(folder, o + Vector3.new(0, 0.5, 0))
+
+	-- four big mirrors around the fountain, on marble pedestals
+	for i = 0, 3 do
+		local angle = math.rad(45 + i * 90)
+		local pos = Vector3.new(math.cos(angle) * 24, 6.4, math.sin(angle) * 24)
+		local cf = CFrame.lookAt(pos, Vector3.new(0, 6.4, 0))
+		part({
+			Name = "MirrorPedestal",
+			Size = Vector3.new(9, 0.9, 2.4),
+			CFrame = cf * CFrame.new(0, -5.45, 0.3),
+			Color = Color3.fromRGB(70, 60, 90),
+			Material = Enum.Material.Marble,
+		}).Parent = folder
+		mirror(folder, cf, Vector2.new(7, 10), Color3.fromRGB(255, 235, 210))
+	end
+
+	-- ring furniture: lamps, planters and benches, skipping the walkways
+	for i = 0, 15 do
+		local a = i / 16 * math.pi * 2 + math.pi / 16
+		if clearOfPaths(a, math.rad(11)) then
+			local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+			if i % 2 == 0 then
+				Props.planter(folder, rng, dir * (PLAZA_RADIUS - 3), 2.2)
+			else
+				Props.bench(folder, CFrame.lookAt(dir * (PLAZA_RADIUS - 3) + Vector3.new(0, 0.5, 0), Vector3.new(0, 0.5, 0)))
+			end
+		end
+	end
+	for i = 0, 11 do
+		local a = i / 12 * math.pi * 2
+		if clearOfPaths(a, math.rad(8)) then
+			Props.lamp(folder, Vector3.new(math.cos(a), 0, math.sin(a)) * (PLAZA_RADIUS + 1.6))
+		end
+	end
+	folder.Parent = workspace
+end
+
+local function distToSegment(p: Vector2, a: Vector2, b: Vector2): number
+	local ab = b - a
+	local t = math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1)
+	return (p - (a + ab * t)).Magnitude
+end
+
 local function inBuiltArea(x: number, z: number): boolean
-	local plaza = math.abs(x) < PLAZA_SIZE.X / 2 + 6 and math.abs(z) < PLAZA_SIZE.Z / 2 + 6
-	local titleWalk = math.abs(x) < 22 and z < -30 and z > TITLE_Z - 12
-	local arena = (Vector3.new(x, 0, z) - ARENA_CENTER).Magnitude < ARENA_RADIUS + 12
-		or (math.abs(x) < 8 and z > 30 and z < ARENA_CENTER.Z)
-	local pond = (Vector3.new(x, 0, z) - POND).Magnitude < 20
-	if plaza or titleWalk or arena or pond then
+	local p = Vector2.new(x, z)
+	if p.Magnitude < PLAZA_RADIUS + 10 then
 		return true
 	end
-	for _, spot in TRAINER_SPOTS do
-		if math.abs(x - spot[3]) < 11 and math.abs(z - spot[4]) < 11 then
+	if math.abs(x) < 24 and z < TITLE_Z + 10 and z > TITLE_Z - 12 then
+		return true
+	end
+	if (Vector3.new(x, 0, z) - ARENA_CENTER).Magnitude < ARENA_RADIUS + 12 or (p - Vector2.new(POND.X, POND.Z)).Magnitude < 22 then
+		return true
+	end
+	for _, zone in ZONES do
+		if (p - zone.center).Magnitude < zone.size.Magnitude / 2 + 12 then
+			return true
+		end
+	end
+	for _, path in PATHS do
+		if distToSegment(p, path[1], path[2]) < path[3] / 2 + 6 then
 			return true
 		end
 	end
@@ -246,167 +472,43 @@ local function scatterPoint(minRadius: number, maxRadius: number): Vector3?
 	return nil
 end
 
-local LEAF_COLORS = {
-	Color3.fromRGB(70, 150, 80),
-	Color3.fromRGB(95, 175, 85),
-	Color3.fromRGB(60, 130, 90),
-	Color3.fromRGB(120, 190, 95),
-}
-
-local function tree(parent: Instance, position: Vector3, scale: number)
-	local height = 8 * scale
-	part({
-		Name = "Trunk",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(height, 1.4 * scale, 1.4 * scale),
-		CFrame = CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(105, 70, 45),
-		Material = Enum.Material.Wood,
-	}).Parent = parent
-	local leaf = LEAF_COLORS[rng:NextInteger(1, #LEAF_COLORS)]
-	for i = 1, 4 do
-		local offset = if i == 1
-			then Vector3.new(0, height + 1, 0)
-			else Vector3.new(rng:NextNumber(-2, 2), height - 0.5 + rng:NextNumber(-1, 1), rng:NextNumber(-2, 2))
-		part({
-			Name = "Leaves",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * (if i == 1 then 6.5 else 4.5) * scale,
-			Position = position + offset * Vector3.new(scale, 1, scale),
-			Color = leaf:Lerp(Color3.new(1, 1, 0.8), i * 0.04),
-			Material = Enum.Material.Grass,
-			CanCollide = false,
-		}).Parent = parent
-	end
-end
-
-local function bush(parent: Instance, position: Vector3)
-	local leaf = LEAF_COLORS[rng:NextInteger(1, #LEAF_COLORS)]
-	for _ = 1, rng:NextInteger(2, 3) do
-		local size = rng:NextNumber(2, 3.5)
-		part({
-			Name = "Bush",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * size,
-			Position = position + Vector3.new(rng:NextNumber(-1.2, 1.2), size * 0.35, rng:NextNumber(-1.2, 1.2)),
-			Color = leaf,
-			Material = Enum.Material.Grass,
-			CanCollide = false,
-		}).Parent = parent
-	end
-end
-
-local function rock(parent: Instance, position: Vector3)
-	local s = rng:NextNumber(1.5, 4)
-	part({
-		Name = "Rock",
-		Size = Vector3.new(s, s * 0.6, s * rng:NextNumber(0.7, 1.2)),
-		CFrame = CFrame.new(position + Vector3.new(0, s * 0.2, 0))
-			* CFrame.Angles(rng:NextNumber(-0.3, 0.3), rng:NextNumber(0, math.pi), rng:NextNumber(-0.3, 0.3)),
-		Color = Color3.fromRGB(120, 118, 125),
-		Material = Enum.Material.Slate,
-	}).Parent = parent
-end
-
-local FLOWER_COLORS = {
-	Color3.fromRGB(255, 110, 160),
-	Color3.fromRGB(255, 220, 80),
-	Color3.fromRGB(170, 120, 255),
-	Color3.fromRGB(255, 255, 255),
-	Color3.fromRGB(120, 200, 255),
-}
-
-local function flowerPatch(parent: Instance, position: Vector3)
-	local color = FLOWER_COLORS[rng:NextInteger(1, #FLOWER_COLORS)]
-	for _ = 1, rng:NextInteger(4, 7) do
-		part({
-			Name = "Flower",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * 0.6,
-			Position = position + Vector3.new(rng:NextNumber(-2, 2), 0.5, rng:NextNumber(-2, 2)),
-			Color = color,
-			Material = Enum.Material.SmoothPlastic,
-			CanCollide = false,
-			CastShadow = false,
-		}).Parent = parent
-	end
-end
-
-local function lamp(parent: Instance, position: Vector3)
-	part({
-		Name = "Pole",
-		Size = Vector3.new(0.5, 9, 0.5),
-		Position = position + Vector3.new(0, 4.5, 0),
-		Color = Color3.fromRGB(40, 40, 50),
-		Material = Enum.Material.Metal,
-	}).Parent = parent
-	local bulb = part({
-		Name = "Bulb",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.one * 1.2,
-		Position = position + Vector3.new(0, 9.3, 0),
-		Color = Color3.fromRGB(255, 225, 170),
-		Material = Enum.Material.Neon,
-		CanCollide = false,
-	})
-	local light = Instance.new("PointLight")
-	light.Range = 16
-	light.Brightness = 1.2
-	light.Color = Color3.fromRGB(255, 210, 150)
-	light.Parent = bulb
-	bulb.Parent = parent
-end
-
-local function bench(parent: Instance, cframe: CFrame)
-	part({
-		Name = "BenchSeat",
-		Size = Vector3.new(6, 0.4, 2),
-		CFrame = cframe * CFrame.new(0, 1.4, 0),
-		Color = Color3.fromRGB(150, 100, 60),
-		Material = Enum.Material.WoodPlanks,
-	}).Parent = parent
-	for _, x in { -2.5, 2.5 } do
-		part({
-			Name = "BenchLeg",
-			Size = Vector3.new(0.4, 1.2, 1.8),
-			CFrame = cframe * CFrame.new(x, 0.6, 0),
-			Color = Color3.fromRGB(40, 40, 50),
-			Material = Enum.Material.Metal,
-		}).Parent = parent
-	end
-end
-
 local function titleSign(parent: Instance)
 	local board = part({
 		Name = "TitleBoard",
-		Size = Vector3.new(34, 8, 1),
-		Position = Vector3.new(0, 14, TITLE_Z),
-		Color = Color3.fromRGB(25, 20, 40),
+		Size = Vector3.new(40, 9, 1),
+		Position = Vector3.new(0, 15, TITLE_Z),
+		Color = Color3.fromRGB(34, 24, 54),
 		Material = Enum.Material.SmoothPlastic,
 	})
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Back
-	gui.PixelsPerStud = 30
-	gui.LightInfluence = 0
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.AutoLocalize = false
-	label.Text = "LOOKSMAX SIMULATOR"
-	label.TextScaled = true
-	label.Font = Enum.Font.FredokaOne
-	label.TextColor3 = Color3.fromRGB(255, 205, 70)
-	label.Parent = gui
-	gui.Parent = board
+	Kit.faceText(board, Enum.NormalId.Back, "LOOKSMAX SIMULATOR", Color3.fromRGB(255, 210, 80), Color3.fromRGB(120, 40, 90))
 	board.Parent = parent
-	for _, x in { -15, 15 } do
+	part({
+		Name = "TitleGlow",
+		Size = Vector3.new(41.6, 10.6, 0.6),
+		Position = Vector3.new(0, 15, TITLE_Z - 0.4),
+		Color = Color3.fromRGB(255, 120, 180),
+		Material = Enum.Material.Neon,
+	}).Parent = parent
+	for _, x in { -20.5, 20.5 } do
 		part({
 			Name = "TitlePillar",
-			Size = Vector3.new(1.5, 18, 1.5),
-			Position = Vector3.new(x, 9, TITLE_Z),
-			Color = Color3.fromRGB(70, 60, 90),
-			Material = Enum.Material.SmoothPlastic,
+			Size = Vector3.new(2, 20, 2),
+			Position = Vector3.new(x, 10, TITLE_Z),
+			Color = Color3.fromRGB(70, 60, 100),
+			Material = Enum.Material.Marble,
 		}).Parent = parent
+		local cap = part({
+			Name = "TitleCap",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.one * 2.4,
+			Position = Vector3.new(x, 21, TITLE_Z),
+			Color = GOLD,
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+		})
+		Kit.light(cap, Color3.fromRGB(255, 200, 120), 18, 1.2)
+		cap.Parent = parent
+		Props.planter(parent, rng, Vector3.new(x + (if x < 0 then -4 else 4), 0, TITLE_Z + 2), 2)
 	end
 end
 
@@ -416,6 +518,7 @@ local function duelArena()
 	folder.Name = "DuelArena"
 	local c = ARENA_CENTER
 	local red = Color3.fromRGB(235, 70, 80)
+	local blue = Color3.fromRGB(80, 160, 255)
 
 	part({
 		Name = "Stage",
@@ -433,6 +536,8 @@ local function duelArena()
 		Color = red,
 		Material = Enum.Material.Neon,
 	}).Parent = folder
+	disc({ Name = "StageCircle", Color = Color3.fromRGB(70, 55, 95), Material = Enum.Material.SmoothPlastic, CanCollide = false },
+		c + Vector3.new(0, 1.24, 0), ARENA_RADIUS - 8, 0.06).Parent = folder
 	part({
 		Name = "ArenaSpawn",
 		Size = Vector3.new(6, 0.2, 6),
@@ -450,12 +555,12 @@ local function duelArena()
 				Shape = Enum.PartType.Cylinder,
 				Size = Vector3.new(0.4, 7, 7),
 				CFrame = CFrame.new(padPos) * CFrame.Angles(0, 0, math.rad(90)),
-				Color = if side < 0 then Color3.fromRGB(80, 160, 255) else red,
+				Color = if side < 0 then blue else red,
 				Material = Enum.Material.Neon,
 			}).Parent = folder
 			local mirrorPos = padPos + Vector3.new(side * 5, 3.4, 0)
 			mirror(folder, CFrame.lookAt(mirrorPos, mirrorPos - Vector3.new(side, 0, 0)), Vector2.new(4.4, 5.6),
-				if side < 0 then Color3.fromRGB(80, 160, 255) else red)
+				if side < 0 then blue else red)
 		end
 	end
 	local vs = part({
@@ -465,7 +570,7 @@ local function duelArena()
 		Transparency = 1,
 		CanCollide = false,
 	})
-	sign(vs, "VS", Color3.fromRGB(255, 220, 220))
+	Kit.sign(vs, "VS", Color3.fromRGB(255, 220, 220))
 	vs.Parent = folder
 
 	-- neon posts around the ring
@@ -484,7 +589,7 @@ local function duelArena()
 			Shape = Enum.PartType.Ball,
 			Size = Vector3.one * 1.2,
 			Position = pos + Vector3.new(0, 6.4, 0),
-			Color = if i % 2 == 0 then red else Color3.fromRGB(80, 160, 255),
+			Color = if i % 2 == 0 then red else blue,
 			Material = Enum.Material.Neon,
 			CanCollide = false,
 		}).Parent = folder
@@ -508,19 +613,7 @@ local function duelArena()
 		Color = Color3.fromRGB(30, 20, 35),
 		Material = Enum.Material.SmoothPlastic,
 	})
-	local gui = Instance.new("SurfaceGui")
-	gui.Face = Enum.NormalId.Front
-	gui.PixelsPerStud = 30
-	gui.LightInfluence = 0
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Text = "Duel Arena"
-	label.TextScaled = true
-	label.Font = Enum.Font.FredokaOne
-	label.TextColor3 = red
-	label.Parent = gui
-	gui.Parent = board
+	Kit.faceText(board, Enum.NormalId.Front, "Duel Arena", red)
 	board.Parent = folder
 
 	folder.Parent = workspace
@@ -528,7 +621,6 @@ end
 
 local function cliffs(t: Terrain)
 	local cliffRng = Random.new(77)
-	-- inner ring of rocky hills right behind the wall, outer ring of bigger peaks
 	-- three rings, each taller: nothing behind them is visible from inside
 	for _, ring in { { WORLD_RADIUS + 24, 26, 40, 3 }, { WORLD_RADIUS + 60, 45, 70, 4 }, { WORLD_RADIUS + 110, 70, 110, 5 } } do
 		local radius, minR, maxR, step = ring[1], ring[2], ring[3], ring[4]
@@ -555,24 +647,25 @@ end
 local function terrain()
 	local t = workspace.Terrain
 	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(720, 12, 720), Enum.Material.Grass)
-	-- plaza, paths to trainer areas, title sign and arena
-	t:FillBlock(CFrame.new(0, -2, 0), PLAZA_SIZE, Enum.Material.Pavement)
-	-- cross paths: west-east to the trainer rows, south to the title, north to the arena
-	t:FillBlock(CFrame.new(0, -2, -2), Vector3.new(150, 4, 8), Enum.Material.Pavement)
-	t:FillBlock(CFrame.new(0, -2, (TITLE_Z - 30) / 2), Vector3.new(8, 4, -TITLE_Z - 30), Enum.Material.Pavement)
-	t:FillBlock(CFrame.new(0, -2, -60), Vector3.new(140, 4, 8), Enum.Material.Pavement)
-	t:FillBlock(CFrame.new(0, -2, (ARENA_CENTER.Z + 30) / 2), Vector3.new(8, 4, ARENA_CENTER.Z - 30), Enum.Material.Pavement)
-	t:FillBlock(CFrame.new(48, -2, 62), Vector3.new(80, 4, 8), Enum.Material.Pavement)
-	for _, spot in TRAINER_SPOTS do
-		t:FillBlock(CFrame.new(spot[3], -2, spot[4]), Vector3.new(14, 4, 14), Enum.Material.Cobblestone)
+	t:FillCylinder(CFrame.new(0, -2, 0), 4, PLAZA_RADIUS + 2, Enum.Material.Pavement)
+	for _, path in PATHS do
+		local a, b = Vector3.new(path[1].X, -2, path[1].Y), Vector3.new(path[2].X, -2, path[2].Y)
+		t:FillBlock(CFrame.lookAt((a + b) / 2, b), Vector3.new(path[3], 4, (b - a).Magnitude + 4), Enum.Material.Pavement)
 	end
+	-- paved apron under the title sign
+	t:FillBlock(CFrame.new(0, -2, TITLE_Z), Vector3.new(50, 4, 14), Enum.Material.Pavement)
 	pond(t)
 	cliffs(t)
 	pcall(function()
 		(t :: any).Decoration = true -- animated grass blades
 	end)
+	t:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(96, 168, 74))
+	t:SetMaterialColor(Enum.Material.LeafyGrass, Color3.fromRGB(84, 150, 70))
+	t:SetMaterialColor(Enum.Material.Pavement, Color3.fromRGB(226, 210, 186))
+	t:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(232, 210, 160))
+	t:SetMaterialColor(Enum.Material.Rock, Color3.fromRGB(130, 122, 136))
 	t.WaterWaveSize = 0.1
-	t.WaterColor = Color3.fromRGB(60, 140, 160)
+	t.WaterColor = Color3.fromRGB(60, 160, 180)
 end
 
 -- Invisible ring wall so players can't walk out to the cliffs or the map edge.
@@ -596,24 +689,39 @@ local function walls()
 end
 
 local function lighting()
-	Lighting.ClockTime = 16.8
-	Lighting.Brightness = 2
-	Lighting.OutdoorAmbient = Color3.fromRGB(140, 130, 150)
+	Lighting.ClockTime = 15.4
+	Lighting.Brightness = 2.6
+	Lighting.Ambient = Color3.fromRGB(70, 60, 85)
+	Lighting.OutdoorAmbient = Color3.fromRGB(150, 140, 165)
+	Lighting.EnvironmentDiffuseScale = 0.6
+	Lighting.EnvironmentSpecularScale = 0.6
+	Lighting.GlobalShadows = true
+	local sky = Lighting:FindFirstChildOfClass("Sky")
+	if sky then
+		sky.SunAngularSize = 16
+	end
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere")
-	atmosphere.Density = 0.36
-	atmosphere.Color = Color3.fromRGB(255, 215, 200)
-	atmosphere.Decay = Color3.fromRGB(130, 110, 170)
-	atmosphere.Glare = 0.3
-	atmosphere.Haze = 1
+	atmosphere.Density = 0.26
+	atmosphere.Offset = 0.1
+	atmosphere.Color = Color3.fromRGB(205, 220, 255)
+	atmosphere.Decay = Color3.fromRGB(150, 120, 190)
+	atmosphere.Glare = 0.35
+	atmosphere.Haze = 0.7
 	atmosphere.Parent = Lighting
 	local bloom = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect")
-	bloom.Intensity = 0.3
-	bloom.Size = 20
-	bloom.Threshold = 2
+	bloom.Intensity = 0.5
+	bloom.Size = 22
+	bloom.Threshold = 1.4
 	bloom.Parent = Lighting
+	local rays = Lighting:FindFirstChildOfClass("SunRaysEffect") or Instance.new("SunRaysEffect")
+	rays.Intensity = 0.06
+	rays.Spread = 0.6
+	rays.Parent = Lighting
 	local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect")
-	cc.Saturation = 0.12
-	cc.Contrast = 0.06
+	cc.Saturation = 0.18
+	cc.Contrast = 0.1
+	cc.Brightness = 0.02
+	cc.TintColor = Color3.fromRGB(255, 248, 242)
 	cc.Parent = Lighting
 end
 
@@ -621,54 +729,101 @@ local function nature()
 	local folder = Instance.new("Folder")
 	folder.Name = "Nature"
 	-- dense forest belt along the wall hides where the world ends
+	for _ = 1, 95 do
+		local p = scatterPoint(WORLD_RADIUS - 24, WORLD_RADIUS + 6)
+		if p then
+			if rng:NextNumber() < 0.6 then
+				Flora.pine(folder, rng, p, rng:NextNumber(1.2, 1.8))
+			else
+				Flora.oak(folder, rng, p, rng:NextNumber(1.3, 1.9))
+			end
+		end
+	end
+	-- parkland between the halls: mixed oaks, pink blossoms and some pines
 	for _ = 1, 100 do
-		local p = scatterPoint(WORLD_RADIUS - 22, WORLD_RADIUS + 6)
+		local p = scatterPoint(50, WORLD_RADIUS - 26)
 		if p then
-			tree(folder, p, rng:NextNumber(1.3, 2))
+			local roll = rng:NextNumber()
+			if roll < 0.45 then
+				Flora.oak(folder, rng, p, rng:NextNumber(0.9, 1.4))
+			elseif roll < 0.75 then
+				Flora.blossom(folder, rng, p, rng:NextNumber(0.9, 1.3))
+			else
+				Flora.pine(folder, rng, p, rng:NextNumber(0.8, 1.2))
+			end
 		end
 	end
-	for _ = 1, 90 do
-		local p = scatterPoint(60, WORLD_RADIUS - 4)
-		if p then
-			tree(folder, p, rng:NextNumber(0.9, 1.6))
+	-- blossom ring framing the plaza
+	for i = 0, 15 do
+		local a = i / 16 * math.pi * 2 + math.pi / 16
+		if clearOfPaths(a, math.rad(14)) then
+			Flora.blossom(folder, rng, Vector3.new(math.cos(a), 0, math.sin(a)) * (PLAZA_RADIUS + 9), 1.1)
 		end
 	end
-	for _ = 1, 120 do
-		local p = scatterPoint(36, WORLD_RADIUS - 4)
+	-- palms around the pond
+	for i = 0, 5 do
+		local a = i / 6 * math.pi * 2 + 0.3
+		Flora.palm(folder, rng, POND + Vector3.new(math.cos(a), 0, math.sin(a)) * 20, rng:NextNumber(0.9, 1.2))
+	end
+	for _ = 1, 80 do
+		local p = scatterPoint(40, WORLD_RADIUS - 4)
 		if p then
-			bush(folder, p)
+			Flora.bush(folder, rng, p)
+		end
+	end
+	for _ = 1, 35 do
+		local p = scatterPoint(44, WORLD_RADIUS - 2)
+		if p then
+			Flora.rock(folder, rng, p)
 		end
 	end
 	for _ = 1, 45 do
-		local p = scatterPoint(40, WORLD_RADIUS - 2)
+		local p = scatterPoint(40, WORLD_RADIUS - 6)
 		if p then
-			rock(folder, p)
-		end
-	end
-	for _ = 1, 90 do
-		local p = scatterPoint(36, WORLD_RADIUS - 6)
-		if p then
-			flowerPatch(folder, p)
+			Flora.flowerPatch(folder, rng, p)
 		end
 	end
 	folder.Parent = workspace
 end
 
+-- Walkway dressing: lamp pairs every 16 studs, hedges (main walks) or flower beds
+-- (hall walks) between them.
 local function decor()
 	local folder = Instance.new("Folder")
 	folder.Name = "Decor"
-	for _, pos in {
-		Vector3.new(-14, 0, -7), Vector3.new(14, 0, -7), Vector3.new(-30, 0, -7), Vector3.new(30, 0, -7),
-		Vector3.new(-6, 0, -36), Vector3.new(6, 0, -36), Vector3.new(-28, 0, 28), Vector3.new(28, 0, 28),
-		Vector3.new(-46, 0, -7), Vector3.new(46, 0, -7), Vector3.new(-60, 0, -7), Vector3.new(60, 0, -7),
-		Vector3.new(-6, 0, -90), Vector3.new(6, 0, -90), Vector3.new(-6, 0, 50), Vector3.new(6, 0, 50),
-		Vector3.new(-6, 0, 80), Vector3.new(6, 0, 80), Vector3.new(30, 0, 57), Vector3.new(60, 0, 57),
-	} do
-		lamp(folder, pos)
+	for index, path in PATHS do
+		local a, b, width = path[1], path[2], path[3]
+		local length = (b - a).Magnitude
+		local u = (b - a).Unit
+		local n = Vector2.new(-u.Y, u.X)
+		local accent = if index <= #ZONES then ZONES[index].color else nil
+		local t = 6
+		while t < length - 3 do
+			for _, side in { -1, 1 } do
+				local lampAt = a + u * t + n * side * (width / 2 + 1.2)
+				Props.lamp(folder, Vector3.new(lampAt.X, 0, lampAt.Y), accent)
+				local segEnd = math.min(t + 14, length - 2)
+				if segEnd - t > 6 then
+					local mid = a + u * ((t + segEnd) / 2) + n * side * (width / 2 + 2.6)
+					local pos = Vector3.new(mid.X, 0, mid.Y)
+					local cf = CFrame.lookAt(pos, pos + Vector3.new(n.X, 0, n.Y))
+					if index <= #ZONES then
+						Flora.flowerBed(folder, rng, cf, segEnd - t - 3)
+					else
+						Flora.hedge(folder, cf, segEnd - t - 3)
+					end
+				end
+			end
+			t += 16
+		end
 	end
-	bench(folder, CFrame.new(-22, 0, 8))
-	bench(folder, CFrame.new(22, 0, 8))
-	bench(folder, CFrame.new(0, 0, 28) * CFrame.Angles(0, math.rad(180), 0))
+
+	-- pond corner: benches looking at the water
+	for _, a in { 0.4, 1.3 } do
+		local dir = Vector3.new(math.cos(a), 0, math.sin(a))
+		local pos = POND - dir * 24
+		Props.bench(folder, CFrame.lookAt(pos, POND))
+	end
 	titleSign(folder)
 	folder.Parent = workspace
 end
@@ -698,7 +853,7 @@ local function snapToGround()
 	local ground = if #heights > 0 then math.max(2, math.max(table.unpack(heights))) else 2
 	local offset = Vector3.new(0, ground, 0)
 	local roots = { workspace:FindFirstChildOfClass("SpawnLocation") }
-	for _, name in { "Lobby", "Trainers", "DuelArena", "Decor", "Nature" } do
+	for _, name in { "Lobby", "Trainers", "Zones", "DuelArena", "Decor", "Nature" } do
 		table.insert(roots, workspace:FindFirstChild(name))
 	end
 	for _, root in roots do
@@ -724,30 +879,37 @@ function MapBuilder.build()
 	end
 	terrain()
 
-	if not workspace:FindFirstChildOfClass("SpawnLocation") then
-		local spawn = Instance.new("SpawnLocation")
+	-- spawn on the plaza in front of the fountain (the center is the fountain now);
+	-- invisible so the tile pattern shows through
+	local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
+	if not spawn then
+		spawn = Instance.new("SpawnLocation")
 		spawn.Anchored = true
-		spawn.Size = Vector3.new(12, 1, 12)
-		spawn.Position = Vector3.new(0, 0.5, 0)
+		spawn.Size = Vector3.new(10, 1, 10)
 		spawn.Neutral = true
 		spawn.Duration = 0
 		spawn.Parent = workspace
 	end
-
-	local lobby = Instance.new("Folder")
-	lobby.Name = "Lobby"
-	for i = 0, 3 do
-		local angle = math.rad(45 + i * 90)
-		local pos = Vector3.new(math.cos(angle) * 24, 5.5, math.sin(angle) * 24)
-		mirror(lobby, CFrame.lookAt(pos, Vector3.new(0, 5.5, 0)), Vector2.new(7, 10), Color3.fromRGB(255, 235, 210))
+	spawn.CFrame = CFrame.lookAt(SPAWN, Vector3.new(0, SPAWN.Y, 0))
+	spawn.Transparency = 1
+	spawn.CanCollide = false
+	spawn.CanQuery = false
+	for _, d in spawn:GetChildren() do
+		if d:IsA("Decal") then
+			d.Transparency = 1
+		end
 	end
-	lobby.Parent = workspace
+
+	plaza()
 
 	local trainers = Instance.new("Folder")
 	trainers.Name = "Trainers"
-	for _, spot in TRAINER_SPOTS do
-		trainer(trainers, spot[1], TRAINER_TITLES[spot[1]], spot[2], Vector3.new(spot[3], 0.3, spot[4]))
+	local zones = Instance.new("Folder")
+	zones.Name = "Zones"
+	for _, zone in ZONES do
+		hall(zones, trainers, zone)
 	end
+	zones.Parent = workspace
 	trainers.Parent = workspace
 
 	duelArena()
@@ -756,7 +918,7 @@ function MapBuilder.build()
 	nature()
 	snapToGround()
 	-- clients may not have the arena streamed in, so publish the teleport point
-	workspace:SetAttribute("ArenaSpawn", workspace.DuelArena.ArenaSpawn.Position + Vector3.new(0, 4, 0))
+	workspace:SetAttribute("ArenaSpawn", workspace.DuelArena.ArenaSpawn.CFrame.Position + Vector3.new(0, 4, 0))
 	lighting()
 end
 
