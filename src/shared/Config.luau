@@ -43,7 +43,7 @@ Config.UseTierHeadModels = true
 -- Plain numbers (no Roblox types here, Config is also loaded by Lune tests).
 Config.TierHeadFit = {
 	scale = { 1.35, 1.35, 1.35 }, -- model height = avatar head height * y (x/z keep model proportions)
-	offsetY = -0.18, -- studs: the MakeHuman heads carry a short neck stump below the chin
+	offsetY = 0.12, -- studs: raise so the face sits where the avatar head was (hair line on top)
 	rotateY = 0, -- degrees, if the imported model faces the wrong way
 }
 -- Face shape of each tier model (fat, jaw) — must match TIERS in make_heads.py.
