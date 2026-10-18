@@ -166,6 +166,16 @@ function FaceCamera.init()
 		onCharacter(player.Character)
 	end
 
+	-- Roblox's camera fades character parts when it gets close; keep the tier head visible
+	-- (we look at the face on purpose)
+	RunService:BindToRenderStep("LooksmaxKeepHeadVisible", Enum.RenderPriority.Camera.Value + 2, function()
+		local character = player.Character
+		local tierHead = character and character:FindFirstChild("TierHead")
+		if tierHead and tierHead:IsA("BasePart") then
+			tierHead.LocalTransparencyModifier = 0
+		end
+	end)
+
 	-- holding a mini-game item puts the camera on the face right away
 	RunService.Heartbeat:Connect(function()
 		if (heldMiniGame() or trainerSeat()) and not zoomed and head() then
