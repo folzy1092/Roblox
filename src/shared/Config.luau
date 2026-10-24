@@ -43,10 +43,10 @@ Config.UseMeshHeads = false
 Config.UseTierHeadModels = true
 -- Plain numbers (no Roblox types here, Config is also loaded by Lune tests).
 Config.TierHeadFit = {
-	scale = { 1.0, 1.2, 1.0 }, -- model height = avatar head height * y (x/z keep model proportions)
+	scale = { 0.95, 1.08, 0.95 }, -- model height = avatar head height * y (x/z keep model proportions)
 	-- crown alignment: the model's top sits this many studs below the avatar head's top,
 	-- so hair/hats (made for the avatar head) cover the skull; the neck goes down into the torso
-	topInset = 0.2,
+	topInset = 0.0,
 	rotateY = 0, -- degrees, if the imported model faces the wrong way
 }
 
