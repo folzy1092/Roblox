@@ -37,62 +37,69 @@ local function trunk(parent: Instance, base: Vector3, height: number, width: num
 	}).Parent = parent
 end
 
+-- Ellipsoid leaf blob: a Part with a sphere SpecialMesh fills its (non-uniform) box.
+local function blob(parent: Instance, name: string, size: Vector3, cframe: CFrame, color: Color3)
+	local p = part({
+		Name = name,
+		Size = size,
+		CFrame = cframe,
+		Color = color,
+		Material = Enum.Material.Grass,
+		CanCollide = false,
+	})
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	p.Parent = parent
+	return p
+end
+
 local function canopy(parent: Instance, rng: Random, base: Vector3, height: number, scale: number, shades: { Color3 })
-	-- three layered balls, darker below and lighter on top: reads as volume from above
-	for i, layer in {
-		{ Vector3.new(0, 0, 0), 7.2 },
-		{ Vector3.new(rng:NextNumber(-1.4, 1.4), 1.8, rng:NextNumber(-1.4, 1.4)), 5.6 },
-		{ Vector3.new(rng:NextNumber(-0.8, 0.8), 3.4, rng:NextNumber(-0.8, 0.8)), 3.8 },
-	} do
-		part({
-			Name = "Leaves",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * layer[2] * scale,
-			Position = base + Vector3.new(0, height, 0) + layer[1] * scale,
-			Color = shades[i],
-			Material = Enum.Material.Grass,
-			CanCollide = false,
-		}).Parent = parent
+	-- a cluster of soft clumps: big core, side clumps around it, a lighter crown on top
+	local top = base + Vector3.new(0, height, 0)
+	blob(parent, "Leaves", Vector3.new(7, 5.4, 7) * scale, CFrame.new(top), shades[1])
+	local count = rng:NextInteger(4, 5)
+	local spin = rng:NextNumber(0, math.pi * 2)
+	for i = 1, count do
+		local a = spin + i / count * math.pi * 2
+		local r = rng:NextNumber(2.2, 3) * scale
+		local s = rng:NextNumber(3.6, 4.8) * scale
+		blob(parent, "Leaves", Vector3.new(s, s * 0.8, s),
+			CFrame.new(top + Vector3.new(math.cos(a) * r, rng:NextNumber(-0.6, 1.2) * scale, math.sin(a) * r)),
+			shades[(i % 2) + 1])
 	end
+	blob(parent, "Leaves", Vector3.new(4.6, 3.6, 4.6) * scale,
+		CFrame.new(top + Vector3.new(rng:NextNumber(-0.6, 0.6), 2.4 * scale, rng:NextNumber(-0.6, 0.6))), shades[3])
 end
 
 function Flora.oak(parent: Instance, rng: Random, position: Vector3, scale: number)
 	local height = 7 * scale
-	trunk(parent, position, height, 1.4 * scale)
+	trunk(parent, position, height + 1, 0.9 * scale)
 	canopy(parent, rng, position, height, scale, pick(rng, LEAVES))
 end
 
 function Flora.blossom(parent: Instance, rng: Random, position: Vector3, scale: number)
 	local height = 6 * scale
-	trunk(parent, position, height, 1.1 * scale, Color3.fromRGB(86, 58, 52))
+	trunk(parent, position, height + 1, 0.75 * scale, Color3.fromRGB(86, 58, 52))
 	canopy(parent, rng, position, height, scale * 0.9, BLOSSOM)
 end
 
--- Tiered pine: stacked discs shrinking upward.
+-- Fir: soft overlapping skirts that get narrower toward a pointed tip (no flat discs).
 function Flora.pine(parent: Instance, rng: Random, position: Vector3, scale: number)
-	trunk(parent, position, 4 * scale, 1.2 * scale)
+	trunk(parent, position, 3.5 * scale, 0.8 * scale)
 	local shade = rng:NextInteger(0, 1)
-	for i = 0, 3 do
-		local radius = (5 - i * 1.1) * scale
-		part({
-			Name = "Needles",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(2.2 * scale, radius * 2, radius * 2),
-			CFrame = CFrame.new(position + Vector3.new(0, (3.6 + i * 2.6) * scale, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = PINE[math.min(#PINE, i + shade + 1)]:Lerp(Color3.new(1, 1, 1), i * 0.03),
-			Material = Enum.Material.Grass,
-			CanCollide = false,
-		}).Parent = parent
+	local layers = 6
+	for i = 0, layers - 1 do
+		local t = i / (layers - 1)
+		local width = (6.4 - 5 * t) * scale
+		local tall = (3.2 - 1.2 * t) * scale
+		local y = (3 + i * 1.9) * scale
+		blob(parent, "Needles", Vector3.new(width, tall, width),
+			CFrame.new(position + Vector3.new(0, y, 0)) * CFrame.Angles(0, rng:NextNumber(0, math.pi), 0),
+			PINE[math.min(#PINE, math.floor(t * 2) + shade + 1)])
 	end
-	part({
-		Name = "Needles",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.one * 1.8 * scale,
-		Position = position + Vector3.new(0, 13.4 * scale, 0),
-		Color = PINE[3],
-		Material = Enum.Material.Grass,
-		CanCollide = false,
-	}).Parent = parent
+	blob(parent, "Needles", Vector3.new(1.2, 2.6, 1.2) * scale,
+		CFrame.new(position + Vector3.new(0, (3 + layers * 1.9) * scale, 0)), PINE[3])
 end
 
 -- Palm: slightly curved trunk and drooping fronds.
@@ -142,17 +149,11 @@ end
 function Flora.bush(parent: Instance, rng: Random, position: Vector3)
 	local shades = pick(rng, LEAVES)
 	local flowering = rng:NextNumber() < 0.3
-	for i = 1, 2 do
-		local size = rng:NextNumber(2.4, 3.8) / i
-		part({
-			Name = "Bush",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.one * size,
-			Position = position + Vector3.new(rng:NextNumber(-0.8, 0.8), size * 0.35 + (i - 1) * 0.9, rng:NextNumber(-0.8, 0.8)),
-			Color = if flowering and i == 2 then pick(rng, BLOSSOM) else shades[i + 1],
-			Material = Enum.Material.Grass,
-			CanCollide = false,
-		}).Parent = parent
+	for i = 1, 3 do
+		local size = rng:NextNumber(2.2, 3.4) * (1 - (i - 1) * 0.2)
+		blob(parent, "Bush", Vector3.new(size, size * 0.75, size),
+			CFrame.new(position + Vector3.new(rng:NextNumber(-1, 1), size * 0.3 + (i - 1) * 0.4, rng:NextNumber(-1, 1))),
+			if flowering and i == 3 then pick(rng, BLOSSOM) else shades[math.min(3, i)])
 	end
 end
 
