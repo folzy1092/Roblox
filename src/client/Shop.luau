@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 local Strings = require(script.Parent.Strings)
 local Ui = require(script.Parent.Ui)
 
@@ -63,13 +64,33 @@ local function card(list: Instance, id: string, item: any): TextButton
 		}),
 		Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 0.5 }),
 	})
-	Ui.label({
+	-- 3D preview of the item, slowly turning
+	local view = Ui.make("ViewportFrame", {
 		Size = UDim2.fromScale(1, 1),
-		Text = string.upper(string.sub(Strings.get("item." .. id), 1, 1)),
-		TextColor3 = Color3.new(1, 1, 1),
-		TextStrokeTransparency = 0.5,
+		BackgroundTransparency = 1,
+		Ambient = Color3.fromRGB(200, 200, 210),
+		LightColor = Color3.new(1, 1, 1),
+		LightDirection = Vector3.new(-1, -1, -1),
 		Parent = orb,
 	})
+	local model = Instance.new("Model")
+	ItemModels.build(id, model)
+	model.Parent = view
+	local cframe, size = model:GetBoundingBox()
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 30
+	camera.Parent = view
+	view.CurrentCamera = camera
+	local distance = size.Magnitude * 1.9
+	task.spawn(function()
+		local spin = 0
+		while view.Parent do
+			spin += 0.03
+			local eye = cframe.Position + Vector3.new(math.sin(spin), 0.35, math.cos(spin)) * distance
+			camera.CFrame = CFrame.lookAt(eye, cframe.Position)
+			task.wait(1 / 30)
+		end
+	end)
 	Ui.label({
 		Size = UDim2.fromScale(0.92, 0.14),
 		Position = UDim2.fromScale(0.04, 0.47),

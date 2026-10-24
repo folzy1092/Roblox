@@ -45,7 +45,9 @@ Config.UseTierHeadModels = true
 Config.TierHeadFit = {
 	scale = { 1.35, 1.35, 1.35 }, -- model height = avatar head height * y (x/z keep model proportions)
 	offsetY = 0.3, -- studs: raise so the face sits where the avatar head was (hair line on top)
-	rotateY = 0, -- degrees, if the imported model faces the wrong way
+	rotateY = 0,
+	-- extra lift per tier: longer top-tier faces would otherwise sink the chin into the torso
+	tierLift = { 0, 0, 0, 0, 0.04, 0.08, 0.14, 0.22 }, -- degrees, if the imported model faces the wrong way
 }
 -- Face shape of each tier model (fat, jaw) — must match TIERS in make_heads.py.
 Config.TierShapes = {

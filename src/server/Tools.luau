@@ -3,14 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Progression = require(ReplicatedStorage.Shared.Progression)
-
-local COLORS = {
-	gum = Color3.fromRGB(255, 120, 190),
-	mewing = Color3.fromRGB(120, 200, 255),
-	jawball = Color3.fromRGB(90, 220, 120),
-	guasha = Color3.fromRGB(190, 120, 255),
-	bonetapper = Color3.fromRGB(200, 200, 210),
-}
+local ItemModels = require(ReplicatedStorage.Shared.ItemModels)
 
 local Tools = {}
 
@@ -21,15 +14,9 @@ local function makeTool(itemId: string): Tool
 	tool.CanBeDropped = false
 	tool:SetAttribute("ItemId", itemId)
 
-	local handle = Instance.new("Part")
-	handle.Name = "Handle"
-	handle.Size = Vector3.new(0.6, 0.6, 0.6)
-	handle.Shape = Enum.PartType.Ball
-	handle.Color = COLORS[itemId] or Color3.new(1, 1, 1)
-	handle.Material = Enum.Material.SmoothPlastic
-	handle.CanCollide = false
-	handle.Massless = true
-	handle.Parent = tool
+	ItemModels.build(itemId, tool)
+	-- models stand along +Y; hold them upright in the hand
+	tool.Grip = CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(90), 0, 0)
 	return tool
 end
 
