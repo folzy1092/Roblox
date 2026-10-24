@@ -84,33 +84,34 @@ end
 -- With the procedural mesh off, the real head is the default one: use a neutral shape and
 -- squeeze the points into the visible face area (brows .. chin) so they don't sit too low.
 local function facePoint(h: BasePart, x: number, y: number): Vector3
+	-- worn MakeHuman tier head: map face coords onto its real face and ray-cast from the front
+	local worn = player.Character and player.Character:FindFirstChild("TierHead") :: BasePart?
+	if worn then
+		local fit = Config.FaceLayout
+		local size = worn.Size
+		local local_ = Vector3.new(x * fit.halfWidth * size.X / 2, (0.5 - (fit.top + (fit.brow - y) * fit.step)) * size.Y, 0)
+		local frontDir = worn.CFrame.LookVector
+		local through = worn.CFrame:PointToWorldSpace(local_)
+		local origin = through + frontDir * size.Z * 2
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Include
+		params.FilterDescendantsInstances = { worn }
+		local hit = workspace:Raycast(origin, -frontDir * size.Z * 4, params)
+		if hit then
+			return hit.Position + hit.Normal * 0.02
+		end
+		return through + frontDir * size.Z * 0.45
+	end
 	local fat, jaw = 0, 0.3
 	if Config.UseMeshHeads then
-		local s = Looks.shape(player:GetAttribute("Rating") or 0)
-		fat, jaw = s.fat, s.jaw
+		local sh = Looks.shape(player:GetAttribute("Rating") or 0)
+		fat, jaw = sh.fat, sh.jaw
 	else
 		y = y * 0.75 + 0.08
 	end
 	local p = HeadShape.surface(x, y, fat, jaw)
 	local size = h.Size
-	local guess = h.CFrame:PointToWorldSpace(Vector3.new(p.x * size.X / 2, p.y * size.Y / 2, p.z * size.Z / 2) * LIFT)
-	-- with a worn tier head model, snap the point onto its real surface with a ray
-	local worn = player.Character and player.Character:FindFirstChild("TierHead") :: BasePart?
-	if worn then
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Include
-		params.FilterDescendantsInstances = { worn }
-		local center = h.CFrame:PointToWorldSpace(Vector3.new(0, p.y * size.Y / 2, 0))
-		local outward = (guess - center)
-		if outward.Magnitude > 1e-3 then
-			local origin = center + outward.Unit * size.Magnitude * 1.5
-			local hit = workspace:Raycast(origin, center - origin, params)
-			if hit then
-				return hit.Position + hit.Normal * 0.03
-			end
-		end
-	end
-	return guess
+	return h.CFrame:PointToWorldSpace(Vector3.new(p.x * size.X / 2, p.y * size.Y / 2, p.z * size.Z / 2) * LIFT)
 end
 
 local function screenOf(world: Vector3): (Vector2, boolean)
@@ -120,6 +121,25 @@ end
 
 local function hitRadius(): number
 	return workspace.CurrentCamera.ViewportSize.Y * HIT_RADIUS
+end
+
+-- Markers are drawn on top of hair/hats (Highlight AlwaysOnTop), so they never hide behind them.
+local function addGlow(part: BasePart)
+	local hl = Instance.new("Highlight")
+	hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	hl.OutlineTransparency = 1
+	hl.Adornee = part
+	hl.Parent = part
+end
+
+local function syncGlow()
+	for _, m in markers do
+		local hl = m:FindFirstChildOfClass("Highlight")
+		if hl then
+			hl.FillColor = m.Color
+			hl.FillTransparency = math.max(m.Transparency, 0.05)
+		end
+	end
 end
 
 local function clearMarkers()
@@ -147,6 +167,7 @@ local function startTapper(h: BasePart)
 	tapper = MiniGames.Tapper.new(math.floor(os.clock() * 1000) % 100000, os.clock())
 	for i in MiniGames.Zones do
 		markers[i] = localPart("Zone", markerSize(h, 0.12), DIM, Enum.PartType.Ball)
+		addGlow(markers[i])
 	end
 	setStatus(Strings.get("workout.tap_hint"), GOLD, 2)
 end
@@ -155,7 +176,7 @@ local function refreshTapper()
 	for i, m in markers do
 		local lit = tapper.phase == "hit" and tapper.target == i
 		m.Color = if lit then GOLD else DIM
-		m.Transparency = if lit then 0.05 + 0.15 * math.sin(os.clock() * 12) else 0.7
+		m.Transparency = if lit then 0.05 + 0.15 * math.sin(os.clock() * 12) else 0.45
 		m.Size = if lit then Vector3.one * 0.2 else Vector3.one * 0.13
 	end
 	if tapper.phase == "rest" then
@@ -278,6 +299,7 @@ local function startStroke(h: BasePart)
 	stroke = MiniGames.Stroke.new(step[1], step[2])
 	for i in stroke.points do
 		markers[i] = localPart("PathDot", markerSize(h, if i == 1 then 0.12 else 0.09), DIM, Enum.PartType.Ball)
+		addGlow(markers[i])
 	end
 end
 
@@ -424,6 +446,7 @@ function Workout.init()
 				markers[i].CFrame = CFrame.new(facePoint(h, zone.x, zone.y))
 			end
 			refreshTapper()
+			syncGlow()
 			animateHammer(h)
 			animateStars(h)
 			refreshRecover()
@@ -432,6 +455,7 @@ function Workout.init()
 				markers[i].CFrame = CFrame.new(facePoint(h, p[1], p[2]))
 			end
 			refreshStroke()
+			syncGlow()
 		end
 	end)
 

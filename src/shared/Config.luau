@@ -50,6 +50,15 @@ Config.TierHeadFit = {
 	rotateY = 0, -- degrees, if the imported model faces the wrong way
 }
 
+-- Where exercise points sit on the worn tier head (fractions of the head model, top = 0).
+-- Face coords y: brow 0.3 .. chin -0.86 map to `top` .. down by `step` per unit.
+Config.FaceLayout = {
+	top = 0.37, -- brow line, from the top of the model
+	brow = 0.3,
+	step = 0.36,
+	halfWidth = 0.78, -- face x -1..1 -> this share of the model half-width
+}
+
 -- Neck under the tier head (fractions of the avatar head size).
 Config.TierNeck = {
 	length = 0.7, -- height of the column
