@@ -59,6 +59,14 @@ local function wear(player: Player)
 	-- no uploaded face textures: Roblox auto-moderation flagged the head atlases as "off-site
 	-- links". The heads are plain skin-colored meshes; the shape carries the look.
 	part.TextureID = ""
+	-- the imported mesh brings a SurfaceAppearance (its moderated texture is gone -> pale/blue);
+	-- it overrides Color, so drop it and use plain skin
+	for _, d in part:GetDescendants() do
+		if d:IsA("SurfaceAppearance") or d:IsA("Decal") or d:IsA("Texture") then
+			d:Destroy()
+		end
+	end
+	part.Material = Enum.Material.SmoothPlastic
 	-- fit the model to this avatar's head size (models are built in a 1-stud box)
 	local fit = Config.TierHeadFit
 	-- keep the model's proportions: scale uniformly so its height matches the avatar head
