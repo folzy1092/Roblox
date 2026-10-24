@@ -70,3 +70,14 @@ workout.stroke_hint,Hold and drag along the dots: chin to ear,,,Hold and drag al
 workout.stroke_done,Smooth!,,,Smooth!,Гладко!
 workout.ouch,Ouch! You hurt yourself,,,Ouch! You hurt yourself,Ай! Ты сделал себе больно
 workout.crack,Crack! Never hit during rest,,,Crack! Never hit during rest,Хрусть! Не бей во время передышки
+product.Boost15,x2 Boost (15 min),,,x2 Boost (15 min),Буст x2 (15 мин)
+product.Boost15.desc,Double rating and Glow for 15 minutes. Stacks.,,,Double rating and Glow for 15 minutes. Stacks.,Двойной рейтинг и Glow на 15 минут. Складывается.
+product.Recover,Instant Recovery,,,Instant Recovery,Мгновенное восстановление
+product.Recover.desc,Shake off a Bone Tapper stun right away,,,Shake off a Bone Tapper stun right away,Сразу снимает оглушение в Bone Tapper
+pass.AutoClick,Auto Click,,,Auto Click,Автоклик
+pass.AutoClick.desc,Clicks for you while you hold an item,,,Clicks for you while you hold an item,"Кликает за тебя, пока в руке предмет"
+hud.boost,x2 BOOST {t},,,x2 BOOST {t},x2 БУСТ {t}
+hud.auto_on,Auto: ON,,,Auto: ON,Авто: ВКЛ
+hud.auto_off,Auto: OFF,,,Auto: OFF,Авто: ВЫКЛ
+workout.recover,Recover now — {price} R$,,,Recover now — {price} R$,Восстановиться — {price} R$
+workout.recovered,Back in shape!,,,Back in shape!,Снова в форме!

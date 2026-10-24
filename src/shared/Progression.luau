@@ -8,12 +8,15 @@ export type Data = {
 	rebirths: number,
 	items: { [string]: boolean },
 	equipped: string,
+	boostLeft: number, -- seconds of x2 boost left (ticks only while online)
+	receipts: { string }, -- recent developer-product purchase ids (grant once)
 }
 
 export type ClickContext = {
 	trainerMult: number,
 	hasX2: boolean,
 	factor: number?, -- mini-game rep worth (1 = plain click)
+	hasBoost: boolean?, -- active x2 boost product
 }
 
 local Progression = {}
@@ -26,6 +29,8 @@ function Progression.defaultData(): Data
 		rebirths = 0,
 		items = { gum = true },
 		equipped = "gum",
+		boostLeft = 0,
+		receipts = {},
 	}
 end
 
@@ -64,6 +69,9 @@ function Progression.clickGain(data: Data, ctx: ClickContext): number
 	end
 	if ctx.hasX2 then
 		gain *= Config.Mult.X2
+	end
+	if ctx.hasBoost then
+		gain *= Config.Mult.Boost
 	end
 	return gain
 end
@@ -117,6 +125,25 @@ function Progression.applyBuy(data: Data, itemId: string)
 	data.glow -= Config.Items[itemId].price
 	data.items[itemId] = true
 	data.equipped = itemId
+end
+
+Progression.MAX_BOOST = 24 * 3600
+local MAX_RECEIPTS = 50
+
+function Progression.addBoost(data: Data, seconds: number)
+	data.boostLeft = math.min(Progression.MAX_BOOST, data.boostLeft + seconds)
+end
+
+-- Remembers a purchase id. Returns false if it was already granted.
+function Progression.markReceipt(data: Data, purchaseId: string): boolean
+	if table.find(data.receipts, purchaseId) then
+		return false
+	end
+	table.insert(data.receipts, purchaseId)
+	while #data.receipts > MAX_RECEIPTS do
+		table.remove(data.receipts, 1)
+	end
+	return true
 end
 
 return Progression

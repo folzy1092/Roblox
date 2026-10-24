@@ -139,6 +139,8 @@ function PlayerData.publish(player: Player)
 	player:SetAttribute("Equipped", data.equipped)
 	player:SetAttribute("Tier", Progression.tierIndex(data.rating))
 	player:SetAttribute("Items", table.concat(owned, ","))
+	-- boost as an absolute server time so the client can count down smoothly
+	player:SetAttribute("BoostUntil", if data.boostLeft > 0 then workspace:GetServerTimeNow() + data.boostLeft else 0)
 end
 
 function PlayerData.save(player: Player, release: boolean?)

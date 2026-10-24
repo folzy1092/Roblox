@@ -214,6 +214,52 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 	})
 	Ui.corner(0.3).Parent = setTimer
 	Ui.make("UISizeConstraint", { MinSize = Vector2.new(180, 36), Parent = setTimer })
+
+	-- x2 boost countdown (developer product)
+	local boostLabel = Ui.label({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(0.985, 0.6),
+		Size = UDim2.fromScale(0.16, 0.05),
+		BackgroundColor3 = Color3.fromRGB(230, 140, 20),
+		BackgroundTransparency = 0.1,
+		Visible = false,
+		Parent = gui,
+	})
+	Ui.corner(0.3).Parent = boostLabel
+	Ui.make("UISizeConstraint", { MinSize = Vector2.new(130, 30), Parent = boostLabel })
+
+	-- AutoClick gamepass toggle (only shown to owners)
+	local autoButton = Ui.button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(0.985, 0.67),
+		Size = UDim2.fromScale(0.16, 0.06),
+		Visible = false,
+		Parent = gui,
+	})
+	Ui.make("UISizeConstraint", { MinSize = Vector2.new(130, 36), Parent = autoButton })
+	local function refreshAuto()
+		local on = player:GetAttribute("AutoClickOn") == true
+		autoButton.Visible = player:GetAttribute("Pass_AutoClick") == true
+		autoButton.Text = Strings.get(if on then "hud.auto_on" else "hud.auto_off")
+		autoButton.BackgroundColor3 = if on then Ui.Colors.Good else Ui.Colors.Muted
+	end
+	autoButton.Activated:Connect(function()
+		player:SetAttribute("AutoClickOn", not (player:GetAttribute("AutoClickOn") == true))
+		refreshAuto()
+	end)
+	player:GetAttributeChangedSignal("Pass_AutoClick"):Connect(refreshAuto)
+	refreshAuto()
+	task.spawn(function()
+		while true do
+			local untilTime = player:GetAttribute("BoostUntil")
+			local left = if typeof(untilTime) == "number" then math.ceil(untilTime - workspace:GetServerTimeNow()) else 0
+			boostLabel.Visible = left > 0
+			if left > 0 then
+				boostLabel.Text = Strings.get("hud.boost", { t = string.format("%d:%02d", left // 60, left % 60) })
+			end
+			task.wait(0.5)
+		end
+	end)
 	task.spawn(function()
 		while true do
 			local endsAt = player:GetAttribute("SeatEndsAt")

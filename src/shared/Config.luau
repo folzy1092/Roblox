@@ -28,6 +28,7 @@ Config.Mult = {
 	Trainer = 3,
 	Vip = 6,
 	X2 = 2,
+	Boost = 2, -- x2 boost developer product
 	PassedTier = 3,
 	PerRebirth = 0.5,
 }
@@ -90,12 +91,24 @@ Config.StudioGrantAllItems = true
 Config.GamePasses = {
 	Vip = 0,
 	X2 = 0,
+	AutoClick = 0,
 }
+
+-- Developer products (bought many times). 0 = not created yet.
+Config.DevProducts = {
+	Boost15 = 0, -- x2 rating & Glow for 15 minutes
+	Recover = 0, -- instantly recover from a Bone Tapper stun
+}
+Config.BoostSeconds = 15 * 60
+Config.AutoClickPerSec = 6
 
 -- What the VIP/store panel shows. Real price is set on the Roblox site; this is the label.
 Config.StoreItems = {
 	{ pass = "Vip", price = 249, order = 1 },
 	{ pass = "X2", price = 199, order = 2 },
+	{ pass = "AutoClick", price = 149, order = 3 },
+	{ product = "Boost15", price = 29, order = 4 },
+	{ product = "Recover", price = 15, order = 5 },
 }
 
 return Config

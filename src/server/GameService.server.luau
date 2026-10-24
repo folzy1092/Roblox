@@ -22,6 +22,11 @@ MapBuilder.build()
 local passCache: { [Player]: { [string]: boolean } } = {}
 local clickWindow: { [Player]: { start: number, count: number } } = {}
 
+local function boosted(player: Player): boolean
+	local data = PlayerData.get(player)
+	return data ~= nil and data.boostLeft > 0
+end
+
 local function ownsPass(player: Player, passName: string): boolean
 	if Config.StudioOwnsAllPasses and RunService:IsStudio() then
 		return true
@@ -71,6 +76,7 @@ Remotes.Click.OnServerEvent:Connect(function(player)
 	Progression.applyClick(data, {
 		trainerMult = Trainers.mult(player, data, ownsPass),
 		hasX2 = ownsPass(player, "X2"),
+		hasBoost = boosted(player),
 	})
 	PlayerData.publish(player)
 end)
@@ -112,6 +118,7 @@ Remotes.Rep.OnServerEvent:Connect(function(player)
 	Progression.applyClick(data, {
 		trainerMult = Trainers.mult(player, data, ownsPass),
 		hasX2 = ownsPass(player, "X2"),
+		hasBoost = boosted(player),
 		factor = MiniGames.RepFactor[kind],
 	})
 	PlayerData.publish(player)
@@ -139,6 +146,57 @@ Remotes.Equip.OnServerEvent:Connect(function(player, itemId)
 end)
 
 -- Studio-only test shortcuts (DEV panel). Ignored in a published game.
+-- Effects of developer products. Shared by real purchases and the Studio DEV test path.
+local PRODUCT_EFFECTS: { [string]: (Player, any) -> () } = {
+	Boost15 = function(player, data)
+		Progression.addBoost(data, Config.BoostSeconds)
+		PlayerData.publish(player)
+	end,
+	Recover = function(player)
+		-- client clears the stun when this attribute changes
+		player:SetAttribute("RecoverToken", (player:GetAttribute("RecoverToken") or 0) + 1)
+	end,
+}
+
+local function productKey(productId: number): string?
+	for key, id in Config.DevProducts do
+		if id ~= 0 and id == productId then
+			return key
+		end
+	end
+	return nil
+end
+
+MarketplaceService.ProcessReceipt = function(receipt)
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	local data = player and PlayerData.get(player)
+	local key = productKey(receipt.ProductId)
+	if not player or not data or not key then
+		return Enum.ProductPurchaseDecision.NotProcessedYet -- Roblox retries later
+	end
+	if Progression.markReceipt(data, receipt.PurchaseId) then
+		PRODUCT_EFFECTS[key](player, data)
+		task.spawn(PlayerData.save, player)
+	end
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
+-- Boost time ticks down only while the player is online.
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for _, player in Players:GetPlayers() do
+			local data = PlayerData.get(player)
+			if data and data.boostLeft > 0 then
+				data.boostLeft = math.max(0, data.boostLeft - 1)
+				if data.boostLeft == 0 or data.boostLeft % 10 == 0 then
+					PlayerData.publish(player)
+				end
+			end
+		end
+	end
+end)
+
 Remotes.Dev.OnServerEvent:Connect(function(player, action, value)
 	if not RunService:IsStudio() then
 		return
@@ -159,6 +217,8 @@ Remotes.Dev.OnServerEvent:Connect(function(player, action, value)
 		data.rating = Config.TopRating
 	elseif action == "glow" then
 		data.glow += 50000
+	elseif action == "product" and typeof(value) == "string" and PRODUCT_EFFECTS[value] then
+		PRODUCT_EFFECTS[value](player, data)
 	elseif action == "reset" then
 		local fresh = Progression.defaultData()
 		data.rating, data.glow, data.rebirths = fresh.rating, fresh.glow, fresh.rebirths

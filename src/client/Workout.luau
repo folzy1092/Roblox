@@ -205,6 +205,14 @@ local function animateHammer(h: BasePart)
 end
 
 -- Cartoon dizzy stars circling the head while stunned.
+-- "Recover now" offer while stunned (developer product); RecoverToken from the server clears it.
+local recoverButton: TextButton
+local function refreshRecover()
+	if recoverButton then
+		recoverButton.Visible = tapper ~= nil and tapper.phase == "stunned"
+	end
+end
+
 local function animateStars(h: BasePart)
 	local stunned = tapper ~= nil and tapper.phase == "stunned"
 	for i, star in stars do
@@ -377,6 +385,27 @@ function Workout.init()
 		ZIndex = 0,
 		Parent = gui,
 	})
+	recoverButton = Ui.button({
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.26),
+		Size = UDim2.fromScale(0.26, 0.06),
+		Text = Strings.get("workout.recover", { price = 15 }),
+		BackgroundColor3 = Color3.fromRGB(80, 170, 255),
+		Visible = false,
+		Parent = gui,
+	})
+	Ui.make("UISizeConstraint", { MinSize = Vector2.new(200, 36), Parent = recoverButton })
+	recoverButton.Activated:Connect(function()
+		require(script.Parent.Store).buyProduct("Recover")
+	end)
+	player:GetAttributeChangedSignal("RecoverToken"):Connect(function()
+		if tapper and tapper.phase == "stunned" then
+			tapper.phaseEnds = 0
+			tapper:update(os.clock())
+			setStatus(Strings.get("workout.recovered"), Color3.fromRGB(120, 220, 255), 1)
+		end
+		refreshRecover()
+	end)
 	gui.Parent = player:WaitForChild("PlayerGui")
 
 	RunService.RenderStepped:Connect(function()
@@ -397,6 +426,7 @@ function Workout.init()
 			refreshTapper()
 			animateHammer(h)
 			animateStars(h)
+			refreshRecover()
 		else
 			for i, p in stroke.points do
 				markers[i].CFrame = CFrame.new(facePoint(h, p[1], p[2]))

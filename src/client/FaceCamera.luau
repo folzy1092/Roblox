@@ -117,6 +117,27 @@ local function popup(amount: number)
 	task.delay(0.8, gui.Destroy, gui)
 end
 
+local function click()
+	lastClick = os.clock()
+	remotes.Click:FireServer()
+	start()
+end
+
+-- AutoClick gamepass: clicks for you while a plain item is held and the HUD toggle is on.
+local function autoClickLoop()
+	local Config = require(ReplicatedStorage.Shared.Config)
+	while true do
+		task.wait(1 / Config.AutoClickPerSec)
+		if player:GetAttribute("Pass_AutoClick") == true and player:GetAttribute("AutoClickOn") == true then
+			local character = player.Character
+			local tool = character and character:FindFirstChildOfClass("Tool")
+			if tool and tool:GetAttribute("ItemId") and not MiniGames.kindOf(tool.Name) then
+				click()
+			end
+		end
+	end
+end
+
 local function hookTool(tool: Instance)
 	if not tool:IsA("Tool") or not tool:GetAttribute("ItemId") or tool:GetAttribute("Hooked") then
 		return
@@ -127,9 +148,7 @@ local function hookTool(tool: Instance)
 		if MiniGames.kindOf(tool.Name) then
 			return
 		end
-		lastClick = os.clock()
-		remotes.Click:FireServer()
-		start()
+		click()
 	end)
 	tool.Unequipped:Connect(stop)
 end
@@ -182,6 +201,8 @@ function FaceCamera.init()
 			start()
 		end
 	end)
+
+	task.spawn(autoClickLoop)
 
 	local lastGlow = player:GetAttribute("Glow") or 0
 	player:GetAttributeChangedSignal("Glow"):Connect(function()
