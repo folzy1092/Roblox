@@ -132,4 +132,31 @@ tests["penalty takes rating and glow, never below zero"] = function()
 	eq(d.glow, 0)
 end
 
+tests["boost doubles a click and stacks with x2"] = function()
+	local d = P.defaultData()
+	eq(d.boostLeft, 0)
+	eq(P.clickGain(d, { trainerMult = 1, hasX2 = false, hasBoost = true }), 2)
+	eq(P.clickGain(d, { trainerMult = 1, hasX2 = true, hasBoost = true }), 4)
+end
+
+tests["boost time adds up and is capped"] = function()
+	local d = P.defaultData()
+	P.addBoost(d, 900)
+	P.addBoost(d, 900)
+	eq(d.boostLeft, 1800)
+	P.addBoost(d, 10 ^ 9)
+	eq(d.boostLeft, P.MAX_BOOST)
+end
+
+tests["receipts are granted once and the list stays short"] = function()
+	local d = P.defaultData()
+	truthy(P.markReceipt(d, "a"))
+	eq(P.markReceipt(d, "a"), false)
+	for i = 1, 80 do
+		P.markReceipt(d, "r" .. i)
+	end
+	truthy(#d.receipts <= 50, "receipt list capped")
+	eq(P.markReceipt(d, "r80"), false)
+end
+
 return tests
