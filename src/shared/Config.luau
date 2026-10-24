@@ -46,8 +46,17 @@ Config.TierHeadFit = {
 	scale = { 1.0, 1.2, 1.0 }, -- model height = avatar head height * y (x/z keep model proportions)
 	-- crown alignment: the model's top sits this many studs below the avatar head's top,
 	-- so hair/hats (made for the avatar head) cover the skull; the neck goes down into the torso
-	topInset = 0.08,
+	topInset = 0.2,
 	rotateY = 0, -- degrees, if the imported model faces the wrong way
+}
+
+-- Neck under the tier head (fractions of the avatar head size).
+Config.TierNeck = {
+	length = 0.7, -- height of the column
+	width = 0.48, -- diameter left-right
+	depth = 1.05, -- front-back relative to width
+	y = 0.05, -- center height above the avatar head bottom
+	back = 0.06, -- shifted a bit back, like a real neck under the skull
 }
 
 -- Face shape of each tier model (fat, jaw) — must match TIERS in make_heads.py.

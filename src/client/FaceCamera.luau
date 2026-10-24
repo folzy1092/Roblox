@@ -189,11 +189,16 @@ function FaceCamera.init()
 	-- (we look at the face on purpose)
 	RunService:BindToRenderStep("LooksmaxKeepHeadVisible", Enum.RenderPriority.Camera.Value + 2, function()
 		local character = player.Character
-		local tierHead = character and character:FindFirstChild("TierHead")
 		-- only while our face/seat camera looks at the head from outside; in first person
 		-- Roblox hides it on purpose (otherwise you see the inside of the head)
-		if zoomed and tierHead and tierHead:IsA("BasePart") then
-			tierHead.LocalTransparencyModifier = 0
+		if not zoomed or not character then
+			return
+		end
+		for _, name in { "TierHead", "TierNeck" } do
+			local piece = character:FindFirstChild(name)
+			if piece and piece:IsA("BasePart") then
+				piece.LocalTransparencyModifier = 0
+			end
 		end
 	end)
 

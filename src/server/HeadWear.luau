@@ -42,6 +42,10 @@ local function wear(player: Player)
 	if current then
 		current:Destroy()
 	end
+	local oldNeck = character:FindFirstChild("TierNeck")
+	if oldNeck then
+		oldNeck:Destroy()
+	end
 
 	local part = source:Clone()
 	part.Name = "TierHead"
@@ -70,6 +74,33 @@ local function wear(player: Player)
 	weld.Parent = part
 	part.CFrame = head.CFrame * offset
 	part.Parent = character
+
+	-- neck: skin-colored column from under the jaw down into the torso, so the jawline reads
+	local neckFit = Config.TierNeck
+	local neck = Instance.new("Part")
+	neck.Name = "TierNeck"
+	neck.Shape = Enum.PartType.Cylinder
+	neck.Material = Enum.Material.SmoothPlastic
+	neck.Color = head.Color
+	neck.Anchored = false
+	neck.CanCollide = false
+	neck.CanQuery = false
+	neck.CanTouch = false
+	neck.Massless = true
+	neck.TopSurface = Enum.SurfaceType.Smooth
+	neck.BottomSurface = Enum.SurfaceType.Smooth
+	local neckLength = head.Size.Y * neckFit.length
+	local neckWidth = head.Size.X * neckFit.width
+	neck.Size = Vector3.new(neckLength, neckWidth, neckWidth * neckFit.depth) -- cylinder axis = X
+	local neckOffset = CFrame.new(0, -head.Size.Y / 2 + neckFit.y * head.Size.Y, head.Size.Z * neckFit.back)
+		* CFrame.Angles(0, 0, math.rad(90))
+	local neckWeld = Instance.new("Weld")
+	neckWeld.Part0 = head
+	neckWeld.Part1 = neck
+	neckWeld.C0 = neckOffset
+	neckWeld.Parent = neck
+	neck.CFrame = head.CFrame * neckOffset
+	neck.Parent = character
 
 	head.Transparency = 1
 	for _, d in head:GetChildren() do
