@@ -15,8 +15,8 @@ local function makeTool(itemId: string): Tool
 	tool:SetAttribute("ItemId", itemId)
 
 	ItemModels.build(itemId, tool)
-	-- models stand along +Y; hold them upright in the hand
-	tool.Grip = CFrame.new(0, -0.15, 0) * CFrame.Angles(math.rad(90), 0, 0)
+	-- models stand along +Y; held upright in the fist
+	tool.Grip = ItemModels.grip(itemId)
 	return tool
 end
 

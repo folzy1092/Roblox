@@ -115,6 +115,20 @@ BUILDERS.bonetapper = function(m, h)
 	end
 end
 
+-- Where the hand holds each model (height along its +Y axis, studs).
+local GRIP_HEIGHT = {
+	gum = 0.15,
+	mewing = 0.15,
+	jawball = 0.1,
+	guasha = 0.25,
+	bonetapper = 0.05,
+}
+
+-- Tool.Grip that holds the model upright in the fist at its grip point.
+function ItemModels.grip(itemId: string): CFrame
+	return CFrame.new(0, GRIP_HEIGHT[itemId] or 0.1, 0)
+end
+
 function ItemModels.has(itemId: string): boolean
 	return BUILDERS[itemId] ~= nil
 end

@@ -60,7 +60,8 @@ local function wear(player: Player)
 	-- keep the model's proportions: scale uniformly so its height matches the avatar head
 	local uniform = head.Size.Y * fit.scale[2] / source.Size.Y
 	part.Size = source.Size * uniform * Vector3.new(fit.scale[1] / fit.scale[2], 1, fit.scale[3] / fit.scale[2])
-	local offset = CFrame.new(0, fit.offsetY + (fit.tierLift[tier] or 0), 0) * CFrame.Angles(0, math.rad(fit.rotateY), 0)
+	local topY = head.Size.Y / 2 - part.Size.Y / 2 - fit.topInset
+	local offset = CFrame.new(0, topY, 0) * CFrame.Angles(0, math.rad(fit.rotateY), 0)
 
 	local weld = Instance.new("Weld")
 	weld.Part0 = head

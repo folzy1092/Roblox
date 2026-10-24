@@ -44,11 +44,12 @@ Config.UseTierHeadModels = true
 -- Plain numbers (no Roblox types here, Config is also loaded by Lune tests).
 Config.TierHeadFit = {
 	scale = { 1.0, 1.2, 1.0 }, -- model height = avatar head height * y (x/z keep model proportions)
-	offsetY = 0.05, -- studs: raise so the face sits where the avatar head was (hair line on top)
-	rotateY = 0,
-	-- extra lift per tier: longer top-tier faces would otherwise sink the chin into the torso
-	tierLift = { 0, 0, 0, 0, 0.04, 0.08, 0.14, 0.22 }, -- degrees, if the imported model faces the wrong way
+	-- crown alignment: the model's top sits this many studs below the avatar head's top,
+	-- so hair/hats (made for the avatar head) cover the skull; the neck goes down into the torso
+	topInset = 0.08,
+	rotateY = 0, -- degrees, if the imported model faces the wrong way
 }
+
 -- Face shape of each tier model (fat, jaw) — must match TIERS in make_heads.py.
 Config.TierShapes = {
 	{ fat = 1.0, jaw = 0.0 },
