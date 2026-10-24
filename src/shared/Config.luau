@@ -101,15 +101,15 @@ Config.StudioGrantAllItems = true
 
 -- 0 = gamepass not created yet (treated as not owned)
 Config.GamePasses = {
-	Vip = 0,
-	X2 = 0,
-	AutoClick = 0,
+	Vip = 2053799648,
+	X2 = 2053595630,
+	AutoClick = 2053655590,
 }
 
 -- Developer products (bought many times). 0 = not created yet.
 Config.DevProducts = {
-	Boost15 = 0, -- x2 rating & Glow for 15 minutes
-	Recover = 0, -- instantly recover from a Bone Tapper stun
+	Boost15 = 3721979549, -- x2 rating & Glow for 15 minutes
+	Recover = 3721979616, -- instantly recover from a Bone Tapper stun
 }
 Config.BoostSeconds = 15 * 60
 Config.AutoClickPerSec = 6
