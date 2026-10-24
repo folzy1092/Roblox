@@ -52,6 +52,9 @@ local function wear(player: Player)
 	part.CanTouch = false
 	part.Massless = true
 	part.Color = head.Color
+	-- no uploaded face textures: Roblox auto-moderation flagged the head atlases as "off-site
+	-- links". The heads are plain skin-colored meshes; the shape carries the look.
+	part.TextureID = ""
 	-- fit the model to this avatar's head size (models are built in a 1-stud box)
 	local fit = Config.TierHeadFit
 	-- keep the model's proportions: scale uniformly so its height matches the avatar head

@@ -129,8 +129,12 @@ def export(obj, path):
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
+    # mesh only: no textures are exported (uploaded atlases got flagged by Roblox auto-moderation)
+    for slot in obj.material_slots:
+        slot.material = None
+    obj.data.materials.clear()
     bpy.ops.export_scene.fbx(filepath=path, use_selection=True, apply_unit_scale=True, bake_space_transform=True,
-                             axis_forward="-Z", axis_up="Y", path_mode="COPY", embed_textures=True,
+                             axis_forward="-Z", axis_up="Y", path_mode="AUTO", embed_textures=False,
                              mesh_smooth_type="FACE", add_leaf_bones=False)
 
 
@@ -140,26 +144,14 @@ def render_row(objs, path, side=False):
     for k, obj in enumerate(objs):
         obj.location = ((k - (len(objs) - 1) / 2) * 1.1, 0, 0)
         obj.rotation_euler = (0, 0, math.radians(90) if side else 0)
-        src = obj.data.materials[0]
-        img = next(n.image for n in src.node_tree.nodes if n.type == "TEX_IMAGE")
-        mat = bpy.data.materials.new(f"prev_{obj.name}")
+        # heads are exported without textures; preview them as plain skin like in the game
+        mat = bpy.data.materials.get("prev_skin") or bpy.data.materials.new("prev_skin")
         mat.use_nodes = True
-        nt = mat.node_tree
-        bsdf = nt.nodes.get("Principled BSDF")
-        tex = nt.nodes.new("ShaderNodeTexImage")
-        tex.image = img
-        mix = nt.nodes.new("ShaderNodeMix")
-        mix.data_type = "RGBA"
-        mix.inputs["A"].default_value = (0.8, 0.6, 0.48, 1)
-        nt.links.new(tex.outputs["Alpha"], mix.inputs["Factor"])
-        nt.links.new(tex.outputs["Color"], mix.inputs["B"])
-        nt.links.new(mix.outputs["Result"], bsdf.inputs["Base Color"])
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        bsdf.inputs["Base Color"].default_value = (0.8, 0.6, 0.48, 1)
         bsdf.inputs["Roughness"].default_value = 0.6
-        if side:
-            obj.data.materials[0] = obj.data.materials[0]  # keep preview material from front pass
-        else:
-            obj["export_mat"] = src.name
-            obj.data.materials[0] = mat
+        obj.data.materials.clear()
+        obj.data.materials.append(mat)
     cam = scene.camera
     if cam is None:
         cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
