@@ -15,32 +15,42 @@ local MapBuilder = {}
 local rng = Random.new(20261017) -- fixed seed: same map every server
 
 -- Sized for 32 players: 23 trainer seats in 5 halls, 2 duel stations, room to walk around.
-local PLAZA_RADIUS = 36
+local PLAZA_RADIUS = 44
 local ARENA_CENTER = Vector3.new(0, 0, 125)
 local ARENA_RADIUS = 36
 local WORLD_RADIUS = 190 -- invisible wall; mountain backdrop starts right behind it
 local POND = Vector3.new(-95, 0, 85)
-local TITLE_Z = -118
+local TITLE_Z = -128
 local SPAWN = Vector3.new(0, 0.6, -21)
 local FLOOR_TOP = 0.8 -- hall floors are raised platforms
+local WALL_H = 20 -- hall walls / pergola height
+local ARCH_H = 27 -- entrance arch pillars
+local APRON = 16 -- paved square in front of each hall entrance
+local HALL_WALK = 16 -- walkway width from the plaza to a hall
+local MAIN_WALK = 14 -- walkway width to the title sign and the arena
 
 local GOLD = Color3.fromRGB(255, 200, 40)
 local CREAM = Color3.fromRGB(240, 230, 218)
 
 -- Trainer halls. Each hall faces the plaza; seats sit along its mirror walls.
 -- size = (width, depth); layout picks the seat template below.
+-- angle: direction from the plaza (0 = east, 90 = north/arena); dist: hall center distance.
 local ZONES = {
-	{ id = "gum", title = "Gum Gym", color = Color3.fromRGB(255, 105, 175), center = Vector2.new(-80, 0),
-		size = Vector2.new(36, 34), layout = "six", landmark = "dumbbell" },
-	{ id = "mewing", title = "Mewing Studio", color = Color3.fromRGB(70, 185, 255), center = Vector2.new(80, 0),
-		size = Vector2.new(36, 34), layout = "six", landmark = "dumbbell" },
-	{ id = "jawball", title = "Jaw Ball Court", color = Color3.fromRGB(255, 145, 50), center = Vector2.new(-46, -80),
-		size = Vector2.new(30, 26), layout = "four", landmark = "ball" },
-	{ id = "guasha", title = "Gua Sha Spa", color = Color3.fromRGB(50, 205, 150), center = Vector2.new(46, -80),
-		size = Vector2.new(30, 26), layout = "four", landmark = "palms" },
-	{ id = "bonetapper", title = "Bone Tapper Lab", color = Color3.fromRGB(160, 100, 255), center = Vector2.new(66, 66),
-		size = Vector2.new(32, 22), layout = "three", landmark = "obelisk" },
+	{ id = "gum", title = "Gum Gym", color = Color3.fromRGB(255, 105, 175), angle = 180, dist = 100,
+		size = Vector2.new(60, 54), layout = "six", landmark = "dumbbell" },
+	{ id = "mewing", title = "Mewing Studio", color = Color3.fromRGB(70, 185, 255), angle = 0, dist = 100,
+		size = Vector2.new(60, 54), layout = "six", landmark = "dumbbell" },
+	{ id = "jawball", title = "Jaw Ball Court", color = Color3.fromRGB(255, 145, 50), angle = 240, dist = 102,
+		size = Vector2.new(46, 42), layout = "four", landmark = "ball" },
+	{ id = "guasha", title = "Gua Sha Spa", color = Color3.fromRGB(50, 205, 150), angle = 300, dist = 102,
+		size = Vector2.new(46, 42), layout = "four", landmark = "palms" },
+	{ id = "bonetapper", title = "Bone Tapper Lab", color = Color3.fromRGB(160, 100, 255), angle = 45, dist = 100,
+		size = Vector2.new(48, 36), layout = "three", landmark = "obelisk" },
 }
+for _, zone in ZONES do
+	local a = math.rad(zone.angle)
+	zone.center = Vector2.new(math.cos(a), math.sin(a)) * zone.dist
+end
 
 local TRAINER_TITLES = {
 	gum = "Gum Trainer",
@@ -60,17 +70,17 @@ local function stations(zone): { { any } }
 	local backZ, sideX = -d + 4.4, w - 4.4
 	if zone.layout == "six" then
 		return {
-			{ -sideX, -1, LEFT, false }, { -sideX, 9, LEFT, false },
-			{ sideX, -1, RIGHT, false }, { sideX, 9, RIGHT, false },
-			{ -6, backZ, BACK, true }, { 6, backZ, BACK, true },
+			{ -sideX, -11, LEFT, false }, { -sideX, 3, LEFT, false },
+			{ sideX, -11, RIGHT, false }, { sideX, 3, RIGHT, false },
+			{ -9, backZ, BACK, true }, { 9, backZ, BACK, true },
 		}
 	elseif zone.layout == "four" then
 		return {
-			{ -sideX, 1, LEFT, false }, { sideX, 1, RIGHT, false },
-			{ -5, backZ, BACK, false }, { 5, backZ, BACK, true },
+			{ -sideX, -2, LEFT, false }, { sideX, -2, RIGHT, false },
+			{ -8, backZ, BACK, false }, { 8, backZ, BACK, true },
 		}
 	end
-	return { { -10, backZ, BACK, false }, { 10, backZ, BACK, false }, { 0, backZ, BACK, true } }
+	return { { -14, backZ, BACK, false }, { 14, backZ, BACK, false }, { 0, backZ, BACK, true } }
 end
 
 -- Hall frame: origin at the hall center, -Z points away from the plaza.
@@ -85,10 +95,10 @@ for _, zone in ZONES do
 	local frame = zoneFrame(zone)
 	local dir = zone.center.Unit
 	local entrance = (frame * CFrame.new(0, 0, zone.size.Y / 2 + 1)).Position
-	table.insert(PATHS, { dir * (PLAZA_RADIUS - 1), Vector2.new(entrance.X, entrance.Z), 10 })
+	table.insert(PATHS, { dir * (PLAZA_RADIUS - 1), Vector2.new(entrance.X, entrance.Z), HALL_WALK })
 end
-table.insert(PATHS, { Vector2.new(0, -PLAZA_RADIUS + 1), Vector2.new(0, TITLE_Z + 3), 10 })
-table.insert(PATHS, { Vector2.new(0, PLAZA_RADIUS - 1), Vector2.new(0, ARENA_CENTER.Z - ARENA_RADIUS), 10 })
+table.insert(PATHS, { Vector2.new(0, -PLAZA_RADIUS + 1), Vector2.new(0, TITLE_Z + 3), MAIN_WALK })
+table.insert(PATHS, { Vector2.new(0, PLAZA_RADIUS - 1), Vector2.new(0, ARENA_CENTER.Z - ARENA_RADIUS), MAIN_WALK })
 
 local PATH_ANGLES = {}
 for _, path in PATHS do
@@ -309,48 +319,60 @@ local function hall(zonesFolder: Folder, trainers: Folder, zone)
 	block("EntranceGlow", Vector3.new(W + 3.4, 0.12, 0.5), at(0, 0.56, D / 2 + 1.45), color, Enum.Material.Neon,
 		{ CanCollide = false })
 	-- floor emblem in the open middle of the hall
-	local emblem = at(0, 0, D / 2 - 8)
+	local emblem = at(0, 0, D * 0.2)
 	disc({ Name = "Emblem", Color = color, Material = Enum.Material.SmoothPlastic },
-		emblem.Position + Vector3.new(0, FLOOR_TOP + 0.04, 0), 5, 0.1).Parent = model
+		emblem.Position + Vector3.new(0, FLOOR_TOP + 0.04, 0), 8, 0.1).Parent = model
 	disc({ Name = "Emblem", Color = floorColor, Material = Enum.Material.SmoothPlastic },
-		emblem.Position + Vector3.new(0, FLOOR_TOP + 0.06, 0), 3.9, 0.1).Parent = model
-	block("Emblem", Vector3.new(2.6, 0.1, 2.6), emblem * CFrame.new(0, FLOOR_TOP + 0.07, 0) * CFrame.Angles(0, math.rad(45), 0),
+		emblem.Position + Vector3.new(0, FLOOR_TOP + 0.06, 0), 6.6, 0.1).Parent = model
+	block("Emblem", Vector3.new(4.4, 0.1, 4.4), emblem * CFrame.new(0, FLOOR_TOP + 0.07, 0) * CFrame.Angles(0, math.rad(45), 0),
 		color, Enum.Material.Neon, { CanCollide = false })
 
-	-- walls behind the mirrors, with a glowing top edge
-	local wallH = 9
+	-- tall walls behind the mirrors: glowing top edge and an accent band at mirror height
+	local wallH = WALL_H
 	local wallY = FLOOR_TOP + wallH / 2
+	local topY = FLOOR_TOP + wallH
 	block("Wall", Vector3.new(W + 0.8, wallH, 1), at(0, wallY, -D / 2 + 0.1), wallColor)
-	block("WallGlow", Vector3.new(W + 0.8, 0.3, 1.1), at(0, FLOOR_TOP + wallH + 0.15, -D / 2 + 0.1), color, Enum.Material.Neon,
+	block("WallGlow", Vector3.new(W + 0.8, 0.4, 1.1), at(0, topY + 0.2, -D / 2 + 0.1), color, Enum.Material.Neon,
 		{ CanCollide = false })
+	block("WallBand", Vector3.new(W - 1, 1.2, 1.1), at(0, FLOOR_TOP + 9.5, -D / 2 + 0.1), darkColor)
 	for _, side in { -1, 1 } do
 		local x = side * (W / 2 - 0.1)
 		block("Wall", Vector3.new(1, wallH, D + 0.4), at(x, wallY, -0.2), wallColor)
-		block("WallGlow", Vector3.new(1.1, 0.3, D + 0.4), at(x, FLOOR_TOP + wallH + 0.15, -0.2), color, Enum.Material.Neon,
+		block("WallGlow", Vector3.new(1.1, 0.4, D + 0.4), at(x, topY + 0.2, -0.2), color, Enum.Material.Neon,
 			{ CanCollide = false })
-		-- arch pillar with a glowing cap
-		block("Pillar", Vector3.new(2.2, 12.4, 2.2), at(side * (W / 2 + 0.1), 6.2, D / 2 + 0.3), darkColor)
-		local cap = block("PillarCap", Vector3.one * 1.6, at(side * (W / 2 + 0.1), 13.2, D / 2 + 0.3), GOLD, Enum.Material.Neon,
-			{ Shape = Enum.PartType.Ball, CanCollide = false })
-		Kit.light(cap, color, 16, 1.2)
-		-- planter at each front corner
-		Props.planter(model, rng, (frame * CFrame.new(side * (W / 2 + 3.6), 0, D / 2 + 3.6)).Position, 1.8, color)
+		block("WallBand", Vector3.new(1.1, 1.2, D - 1), at(x, FLOOR_TOP + 9.5, -0.2), darkColor)
+		-- columns along the side walls hold up the roof (placed between the seats)
+		for _, z in if zone.layout == "six" then { -D / 2 + 1.2, -4, D / 2 - 3 } else { -D / 2 + 1.2, D / 2 - 3 } do
+			block("Column", Vector3.new(2.4, wallH, 2.4), at(x - side * 0.8, wallY, z), CREAM, Enum.Material.Marble)
+		end
+		-- tall arch pillar with a glowing cap
+		block("Pillar", Vector3.new(3.2, ARCH_H, 3.2), at(side * (W / 2 + 0.6), ARCH_H / 2, D / 2 + 0.3), darkColor)
+		local cap = block("PillarCap", Vector3.one * 2.6, at(side * (W / 2 + 0.6), ARCH_H + 1.2, D / 2 + 0.3), GOLD,
+			Enum.Material.Neon, { Shape = Enum.PartType.Ball, CanCollide = false })
+		Kit.light(cap, color, 24, 1.4)
+		-- planters on the paved square, clear of the walkway
+		Props.planter(model, rng, (frame * CFrame.new(side * (W / 2 - 4), 0, D / 2 + 5)).Position, 2.2, color)
 	end
 
-	-- pergola roof: slats let light (and the camera) through
-	local beams = math.floor(D / 4)
+	-- pergola roof high above: slats let light (and the camera) through
+	local beams = math.floor(D / 6)
 	for i = 1, beams do
-		block("RoofBeam", Vector3.new(W + 0.6, 0.5, 0.8), at(0, FLOOR_TOP + wallH + 0.55, -D / 2 + i * D / (beams + 1)), CREAM,
+		block("RoofBeam", Vector3.new(W + 0.6, 0.8, 1.2), at(0, topY + 0.8, -D / 2 + i * D / (beams + 1)), CREAM,
 			Enum.Material.WoodPlanks)
 	end
+	for _, x in { -W / 6, W / 6 } do
+		block("RoofBeam", Vector3.new(1, 0.8, D + 0.4), at(x, topY + 0.4, -0.2), CREAM, Enum.Material.WoodPlanks)
+	end
 
-	-- entrance arch with the hall name on both sides
-	local header = block("ArchSign", Vector3.new(W + 3, 2.8, 1.2), at(0, 11.4, D / 2 + 0.3), darkColor)
+	-- big entrance arch with the hall name on both sides
+	local header = block("ArchSign", Vector3.new(W + 4.4, 5.6, 1.6), at(0, ARCH_H - 3.4, D / 2 + 0.3), darkColor)
 	Kit.faceText(header, Enum.NormalId.Back, string.upper(zone.title), Color3.new(1, 1, 1), color:Lerp(Color3.new(0, 0, 0), 0.5))
 	Kit.faceText(header, Enum.NormalId.Front, string.upper(zone.title), Color3.new(1, 1, 1), color:Lerp(Color3.new(0, 0, 0), 0.5))
-	block("ArchGlow", Vector3.new(W + 3.2, 0.3, 1.3), at(0, 9.85, D / 2 + 0.3), color, Enum.Material.Neon, { CanCollide = false })
+	for _, y in { ARCH_H - 6.4, ARCH_H - 0.4 } do
+		block("ArchGlow", Vector3.new(W + 4.6, 0.5, 1.8), at(0, y, D / 2 + 0.3), color, Enum.Material.Neon, { CanCollide = false })
+	end
 
-	landmark(model, zone.landmark, at(W / 2 + 7, 0, D / 2 - 6), color)
+	landmark(model, zone.landmark, at(W / 2 - 6, 0, D / 2 + APRON - 4), color)
 
 	for _, s in stations(zone) do
 		local localPos = Vector3.new(s[1], FLOOR_TOP + 0.3, s[2])
@@ -441,14 +463,14 @@ local function inBuiltArea(x: number, z: number): boolean
 	if p.Magnitude < PLAZA_RADIUS + 10 then
 		return true
 	end
-	if math.abs(x) < 24 and z < TITLE_Z + 10 and z > TITLE_Z - 12 then
+	if math.abs(x) < 36 and z < TITLE_Z + 14 and z > TITLE_Z - 14 then
 		return true
 	end
 	if (Vector3.new(x, 0, z) - ARENA_CENTER).Magnitude < ARENA_RADIUS + 12 or (p - Vector2.new(POND.X, POND.Z)).Magnitude < 22 then
 		return true
 	end
 	for _, zone in ZONES do
-		if (p - zone.center).Magnitude < zone.size.Magnitude / 2 + 12 then
+		if (p - zone.center).Magnitude < zone.size.Magnitude / 2 + APRON + 6 then
 			return true
 		end
 	end
@@ -666,13 +688,26 @@ end
 local function terrain()
 	local t = workspace.Terrain
 	t:FillBlock(CFrame.new(0, -6, 0), Vector3.new(1400, 12, 1400), Enum.Material.Grass)
-	t:FillCylinder(CFrame.new(0, -2, 0), 4, PLAZA_RADIUS + 2, Enum.Material.Pavement)
-	for _, path in PATHS do
-		local a, b = Vector3.new(path[1].X, -2, path[1].Y), Vector3.new(path[2].X, -2, path[2].Y)
-		t:FillBlock(CFrame.lookAt((a + b) / 2, b), Vector3.new(path[3], 4, (b - a).Magnitude + 4), Enum.Material.Pavement)
+	-- Animated grass blades (Decoration) grow only on Grass. Everything built sits on
+	-- Pavement with a LeafyGrass verge around it, so no blades poke through floors
+	-- or across walkways; plain Grass stays only out in the open park.
+	for _, pass in { { 16, Enum.Material.LeafyGrass }, { 4, Enum.Material.Pavement } } do
+		local pad, material = pass[1], pass[2]
+		t:FillCylinder(CFrame.new(0, -2, 0), 4, PLAZA_RADIUS + pad / 2, material)
+		for _, path in PATHS do
+			local a, b = Vector3.new(path[1].X, -2, path[1].Y), Vector3.new(path[2].X, -2, path[2].Y)
+			local width = path[3] + (if material == Enum.Material.Pavement then 0 else pad)
+			t:FillBlock(CFrame.lookAt((a + b) / 2, b), Vector3.new(width, 4, (b - a).Magnitude + 4), material)
+		end
+		for _, zone in ZONES do
+			-- hall floor plus the paved square in front of its entrance
+			t:FillBlock(zoneFrame(zone) * CFrame.new(0, -2, APRON / 2),
+				Vector3.new(zone.size.X + pad, 4, zone.size.Y + APRON + pad), material)
+		end
+		t:FillBlock(CFrame.new(0, -2, TITLE_Z), Vector3.new(56 + pad, 4, 16 + pad), material)
 	end
-	-- paved apron under the title sign
-	t:FillBlock(CFrame.new(0, -2, TITLE_Z), Vector3.new(50, 4, 14), Enum.Material.Pavement)
+	-- the arena stage and stands sit on a grass verge too
+	t:FillCylinder(CFrame.new(ARENA_CENTER + Vector3.new(0, -2, 6)), 4, ARENA_RADIUS + 18, Enum.Material.LeafyGrass)
 	pond(t)
 	mountains(t)
 	pcall(function()
@@ -750,7 +785,7 @@ local function nature()
 	local folder = Instance.new("Folder")
 	folder.Name = "Nature"
 	-- dense forest belt along the wall hides where the world ends
-	for _ = 1, 95 do
+	for _ = 1, 75 do
 		local p = scatterPoint(WORLD_RADIUS - 24, WORLD_RADIUS + 6)
 		if p then
 			if rng:NextNumber() < 0.6 then
@@ -761,7 +796,7 @@ local function nature()
 		end
 	end
 	-- parkland between the halls: mixed oaks, pink blossoms and some pines
-	for _ = 1, 100 do
+	for _ = 1, 70 do
 		local p = scatterPoint(50, WORLD_RADIUS - 26)
 		if p then
 			local roll = rng:NextNumber()
@@ -786,7 +821,7 @@ local function nature()
 		local a = i / 6 * math.pi * 2 + 0.3
 		Flora.palm(folder, rng, POND + Vector3.new(math.cos(a), 0, math.sin(a)) * 20, rng:NextNumber(0.9, 1.2))
 	end
-	for _ = 1, 80 do
+	for _ = 1, 60 do
 		local p = scatterPoint(40, WORLD_RADIUS - 4)
 		if p then
 			Flora.bush(folder, rng, p)
@@ -798,7 +833,7 @@ local function nature()
 			Flora.rock(folder, rng, p)
 		end
 	end
-	for _ = 1, 45 do
+	for _ = 1, 35 do
 		local p = scatterPoint(40, WORLD_RADIUS - 6)
 		if p then
 			Flora.flowerPatch(folder, rng, p)
