@@ -120,23 +120,24 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 	local side = Ui.make("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.fromScale(0.012, 0.5),
-		Size = UDim2.fromScale(0.12, 0.4),
+		Size = UDim2.fromScale(0.12, 0.48),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
-		Ui.make("UIListLayout", { Padding = UDim.new(0.04, 0), SortOrder = Enum.SortOrder.LayoutOrder }),
-		Ui.make("UISizeConstraint", { MinSize = Vector2.new(110, 200) }),
+		Ui.make("UIListLayout", { Padding = UDim.new(0.025, 0), SortOrder = Enum.SortOrder.LayoutOrder }),
+		Ui.make("UISizeConstraint", { MinSize = Vector2.new(110, 240) }),
 	})
 	for order, entry in {
 		{ "hud.shop", Color3.fromRGB(255, 120, 190), Color3.fromRGB(140, 90, 255), "shop" },
 		{ "hud.duels", Color3.fromRGB(255, 90, 80), Color3.fromRGB(170, 30, 70), "duels" },
+		{ "hud.inventory", Color3.fromRGB(120, 230, 200), Color3.fromRGB(40, 150, 140), "inventory" },
 		{ "hud.vip", Color3.fromRGB(255, 220, 90), Color3.fromRGB(230, 140, 20), "store" },
 		{ "hud.menu", Color3.fromRGB(90, 200, 255), Color3.fromRGB(60, 90, 200), "menu" },
 	} do
 		-- gradient lives on the button background only; text is a child label so it stays white
 		local button = Ui.make("TextButton", {
 			LayoutOrder = order,
-			Size = UDim2.fromScale(1, 0.22),
+			Size = UDim2.fromScale(1, 0.18),
 			Text = "",
 			AutoButtonColor = true,
 			BackgroundColor3 = Color3.new(1, 1, 1),
@@ -215,18 +216,26 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 	Ui.corner(0.3).Parent = setTimer
 	Ui.make("UISizeConstraint", { MinSize = Vector2.new(180, 36), Parent = setTimer })
 
-	-- x2 boost countdown (developer product)
-	local boostLabel = Ui.label({
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(0.985, 0.6),
-		Size = UDim2.fromScale(0.16, 0.05),
-		BackgroundColor3 = Color3.fromRGB(230, 140, 20),
-		BackgroundTransparency = 0.1,
-		Visible = false,
-		Parent = gui,
-	})
-	Ui.corner(0.3).Parent = boostLabel
-	Ui.make("UISizeConstraint", { MinSize = Vector2.new(130, 30), Parent = boostLabel })
+	-- running boost timers: x2 (product / inventory), VIP and auto-click (inventory)
+	local function timerLabel(y: number, color: Color3): TextLabel
+		local label = Ui.label({
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(0.985, y),
+			Size = UDim2.fromScale(0.16, 0.05),
+			BackgroundColor3 = color,
+			BackgroundTransparency = 0.1,
+			Visible = false,
+			Parent = gui,
+		})
+		Ui.corner(0.3).Parent = label
+		Ui.make("UISizeConstraint", { MinSize = Vector2.new(130, 30), Parent = label })
+		return label
+	end
+	local timers = {
+		{ attr = "BoostUntil", key = "hud.boost", label = timerLabel(0.6, Color3.fromRGB(230, 140, 20)) },
+		{ attr = "VipUntil", key = "hud.vip_timer", label = timerLabel(0.54, Color3.fromRGB(200, 150, 20)) },
+		{ attr = "AutoUntil", key = "hud.auto_timer", label = timerLabel(0.74, Color3.fromRGB(40, 140, 200)) },
+	}
 
 	-- AutoClick gamepass toggle (only shown to owners)
 	local autoButton = Ui.button({
@@ -251,11 +260,13 @@ function Hud.init(actions: { [string]: () -> () }): ScreenGui
 	refreshAuto()
 	task.spawn(function()
 		while true do
-			local untilTime = player:GetAttribute("BoostUntil")
-			local left = if typeof(untilTime) == "number" then math.ceil(untilTime - workspace:GetServerTimeNow()) else 0
-			boostLabel.Visible = left > 0
-			if left > 0 then
-				boostLabel.Text = Strings.get("hud.boost", { t = string.format("%d:%02d", left // 60, left % 60) })
+			for _, timer in timers do
+				local untilTime = player:GetAttribute(timer.attr)
+				local left = if typeof(untilTime) == "number" then math.ceil(untilTime - workspace:GetServerTimeNow()) else 0
+				timer.label.Visible = left > 0
+				if left > 0 then
+					timer.label.Text = Strings.get(timer.key, { t = string.format("%d:%02d", left // 60, left % 60) })
+				end
 			end
 			task.wait(0.5)
 		end

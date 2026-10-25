@@ -140,6 +140,18 @@ function PlayerData.publish(player: Player)
 	player:SetAttribute("Tier", Progression.tierIndex(data.rating))
 	player:SetAttribute("Items", table.concat(owned, ","))
 	player:SetAttribute("DuelWins", data.duelWins)
+	local nextDay, ready = Progression.dailyStatus(data, os.time())
+	player:SetAttribute("DailyNext", nextDay)
+	player:SetAttribute("DailyReady", ready)
+	local inv = {}
+	for id, count in data.inventory do
+		table.insert(inv, id .. ":" .. count)
+	end
+	table.sort(inv)
+	player:SetAttribute("Inventory", table.concat(inv, ","))
+	local now = workspace:GetServerTimeNow()
+	player:SetAttribute("VipUntil", if data.vipLeft > 0 then now + data.vipLeft else 0)
+	player:SetAttribute("AutoUntil", if data.autoLeft > 0 then now + data.autoLeft else 0)
 	-- boost as an absolute server time so the client can count down smoothly
 	player:SetAttribute("BoostUntil", if data.boostLeft > 0 then workspace:GetServerTimeNow() + data.boostLeft else 0)
 end

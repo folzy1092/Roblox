@@ -7,6 +7,7 @@ local FaceCamera = require(script.Parent.FaceCamera)
 local Guide = require(script.Parent.Guide)
 local HeadMesh = require(script.Parent.HeadMesh)
 local Hud = require(script.Parent.Hud)
+local Inventory = require(script.Parent.Inventory)
 local Menu = require(script.Parent.Menu)
 local MirrorView = require(script.Parent.MirrorView)
 local Shop = require(script.Parent.Shop)
@@ -24,12 +25,12 @@ local actions = {
 	shop = Shop.init(),
 	duels = Duels.init(),
 	store = Store.init(),
+	inventory = Inventory.init(),
 }
 local hudGui = Hud.init(actions)
-actions.menu = function()
-	Menu.show(hudGui, actions.duels)
-end
-Menu.show(hudGui, actions.duels)
+actions.menu = Menu.show
+Menu.show()
+local _ = hudGui
 FaceCamera.init()
 MirrorView.init()
 HeadMesh.init()

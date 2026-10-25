@@ -21,6 +21,7 @@ local Trainers = require(script.Parent.Trainers)
 MapBuilder.build()
 
 local passCache: { [Player]: { [string]: boolean } } = {}
+local syncPasses: (Player) -> ()
 local clickWindow: { [Player]: { start: number, count: number } } = {}
 
 local function boosted(player: Player): boolean
@@ -32,8 +33,20 @@ local function ownsPass(player: Player, passName: string): boolean
 	if Config.StudioOwnsAllPasses and RunService:IsStudio() then
 		return true
 	end
+	-- a VIP / auto-click boost from the inventory works like the pass while it runs
+	local data = PlayerData.get(player)
+	if data and ((passName == "Vip" and data.vipLeft > 0) or (passName == "AutoClick" and data.autoLeft > 0)) then
+		return true
+	end
 	local cached = passCache[player]
 	return cached ~= nil and cached[passName] == true
+end
+
+-- Pass_* attributes tell the client what it may use (passes or running inventory boosts).
+function syncPasses(player: Player)
+	for name in Config.GamePasses do
+		player:SetAttribute("Pass_" .. name, ownsPass(player, name))
+	end
 end
 
 local function cachePasses(player: Player)
@@ -45,9 +58,7 @@ local function cachePasses(player: Player)
 		end
 	end
 	passCache[player] = owned
-	for name in Config.GamePasses do
-		player:SetAttribute("Pass_" .. name, ownsPass(player, name))
-	end
+	syncPasses(player)
 end
 
 Trainers.init(ownsPass)
@@ -189,11 +200,9 @@ task.spawn(function()
 		task.wait(1)
 		for _, player in Players:GetPlayers() do
 			local data = PlayerData.get(player)
-			if data and data.boostLeft > 0 then
-				data.boostLeft = math.max(0, data.boostLeft - 1)
-				if data.boostLeft == 0 or data.boostLeft % 10 == 0 then
-					PlayerData.publish(player)
-				end
+			if data and Progression.tickEffects(data, 1) then
+				PlayerData.publish(player)
+				syncPasses(player)
 			end
 		end
 	end
@@ -224,8 +233,32 @@ Remotes.Dev.OnServerEvent:Connect(function(player, action, value)
 	elseif action == "reset" then
 		local fresh = Progression.defaultData()
 		data.rating, data.glow, data.rebirths = fresh.rating, fresh.glow, fresh.rebirths
+		data.dailyDay, data.dailyLast = 0, 0
 	end
 	PlayerData.publish(player)
+end)
+
+Remotes.Daily.OnServerEvent:Connect(function(player)
+	local data = PlayerData.get(player)
+	if not data then
+		return
+	end
+	local day, items = Progression.claimDaily(data, os.time())
+	if day then
+		PlayerData.publish(player)
+		Remotes.Daily:FireClient(player, day, items)
+	end
+end)
+
+Remotes.Inventory.OnServerEvent:Connect(function(player, action, id)
+	local data = PlayerData.get(player)
+	if not data or action ~= "use" then
+		return
+	end
+	if Progression.useItem(data, id) then
+		PlayerData.publish(player)
+		syncPasses(player)
+	end
 end)
 
 Remotes.Rebirth.OnServerEvent:Connect(function(player)

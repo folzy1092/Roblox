@@ -11,6 +11,11 @@ export type Data = {
 	boostLeft: number, -- seconds of x2 boost left (ticks only while online)
 	receipts: { string }, -- recent developer-product purchase ids (grant once)
 	duelWins: number,
+	dailyDay: number, -- streak day claimed last (1..7), 0 = never
+	dailyLast: number, -- UTC day number of the last claim
+	inventory: { [string]: number }, -- reward boosts not used yet (Config.RewardItems ids)
+	vipLeft: number, -- seconds of VIP trainers from a reward boost
+	autoLeft: number, -- seconds of auto-click from a reward boost
 }
 
 export type ClickContext = {
@@ -33,6 +38,11 @@ function Progression.defaultData(): Data
 		boostLeft = 0,
 		receipts = {},
 		duelWins = 0,
+		dailyDay = 0,
+		dailyLast = 0,
+		inventory = {},
+		vipLeft = 0,
+		autoLeft = 0,
 	}
 end
 
@@ -146,6 +156,74 @@ function Progression.markReceipt(data: Data, purchaseId: string): boolean
 		table.remove(data.receipts, 1)
 	end
 	return true
+end
+
+---------------------------------------------------------------- daily bonus
+
+local function dayNumber(now: number): number
+	return math.floor(now / 86400)
+end
+
+-- Which streak day comes next and whether it can be claimed now (`now` = unix seconds).
+function Progression.dailyStatus(data: Data, now: number): (number, boolean)
+	local today = dayNumber(now)
+	if data.dailyLast == today then
+		return data.dailyDay, false -- already claimed today
+	elseif data.dailyLast == today - 1 then
+		return data.dailyDay % #Config.DailyRewards + 1, true -- streak goes on (after day 7: day 1)
+	end
+	return 1, true -- first time or missed a day
+end
+
+-- Mutates data. Puts the day's rewards in the inventory. Returns the day and the reward ids,
+-- or nil if today's bonus is already taken.
+function Progression.claimDaily(data: Data, now: number): (number?, { string })
+	local day, ready = Progression.dailyStatus(data, now)
+	if not ready then
+		return nil, {}
+	end
+	local rewards = Config.DailyRewards[day]
+	for _, id in rewards do
+		data.inventory[id] = (data.inventory[id] or 0) + 1
+	end
+	data.dailyDay = day
+	data.dailyLast = dayNumber(now)
+	return day, rewards
+end
+
+---------------------------------------------------------------- inventory boosts
+
+local EFFECT_FIELD = { x2 = "boostLeft", vip = "vipLeft", auto = "autoLeft" }
+
+-- Switches on one inventory boost: its minutes add to that effect's timer. False if not owned.
+function Progression.useItem(data: Data, id: any): boolean
+	local item = if typeof(id) == "string" then Config.RewardItems[id] else nil
+	if not item or (data.inventory[id] or 0) <= 0 then
+		return false
+	end
+	data.inventory[id] -= 1
+	if data.inventory[id] <= 0 then
+		data.inventory[id] = nil
+	end
+	local field = EFFECT_FIELD[item.effect]
+	data[field] = math.min(Progression.MAX_BOOST, data[field] + item.minutes * 60)
+	return true
+end
+
+-- Ticks the timed effects down. Returns true when the client should be told (an effect ended
+-- or a 10-second mark passed).
+function Progression.tickEffects(data: Data, seconds: number): boolean
+	local changed = false
+	for _, field in EFFECT_FIELD do
+		local left = data[field]
+		if left > 0 then
+			data[field] = math.max(0, left - seconds)
+			if data[field] == 0 or data[field] % 10 == 0 then
+				changed = true
+			end
+		end
+	end
+	return changed
 end
 
 return Progression

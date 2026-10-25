@@ -47,7 +47,8 @@ Config.TierHeadFit = {
 	-- crown alignment: the model's top sits this many studs below the avatar head's top.
 	-- Negative = above it: the Roblox head's bottom touches the torso, a human head needs a neck
 	-- under the chin, so the model is lifted (hair follows the skull, see HairFit)
-	topInset = -0.15,
+	topInset = -0.07,
+	forward = 0.07, -- share of the avatar head depth the model sits forward (over the neck, not behind it)
 	-- the model carries its own neck below the head (tools/blender mh_parts.extend_neck):
 	-- this share of the model's height is neck, the rest is the head that gets fitted
 	neckShare = 0.2593,
@@ -135,6 +136,29 @@ Config.DevProducts = {
 	Recover = 3721979616, -- instantly recover from a Bone Tapper stun
 }
 Config.BoostSeconds = 15 * 60
+
+-- Timed boosts players keep in their inventory and switch on when they want.
+-- effect: x2 = x2 rating & Glow (same timer as the Boost15 product), vip = VIP trainers like the
+-- pass, auto = auto-click like the pass. Timers tick only while online.
+Config.RewardItems = {
+	x2_10 = { effect = "x2", minutes = 10, order = 1 },
+	x2_30 = { effect = "x2", minutes = 30, order = 2 },
+	vip_15 = { effect = "vip", minutes = 15, order = 3 },
+	vip_30 = { effect = "vip", minutes = 30, order = 4 },
+	auto_10 = { effect = "auto", minutes = 10, order = 5 },
+	auto_30 = { effect = "auto", minutes = 30, order = 6 },
+}
+-- Daily login bonus: one claim per UTC day, a 7-day streak (miss a day: back to day 1).
+-- Rewards go to the inventory.
+Config.DailyRewards = {
+	{ "x2_10" },
+	{ "auto_10" },
+	{ "vip_15" },
+	{ "x2_30" },
+	{ "auto_30" },
+	{ "vip_30" },
+	{ "x2_30", "vip_30", "auto_30" }, -- mega pack
+}
 Config.AutoClickPerSec = 6
 
 -- What the VIP/store panel shows. Real price is set on the Roblox site; this is the label.

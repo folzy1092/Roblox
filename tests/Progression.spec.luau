@@ -6,6 +6,67 @@ local noBoost = { trainerMult = 1, hasX2 = false }
 
 local tests = {}
 
+local DAY = 86400
+
+tests["daily: first claim is day 1, then nothing until tomorrow"] = function()
+	local d = P.defaultData()
+	local day, ready = P.dailyStatus(d, 10 * DAY + 5)
+	eq(day, 1)
+	eq(ready, true)
+	local got, items = P.claimDaily(d, 10 * DAY + 5)
+	eq(got, 1)
+	eq(items[1], "x2_10")
+	eq(d.inventory.x2_10, 1)
+	eq((P.claimDaily(d, 10 * DAY + 80000)), nil)
+	eq(d.inventory.x2_10, 1)
+	local _, again = P.dailyStatus(d, 10 * DAY + 80000)
+	eq(again, false)
+end
+
+tests["daily: one claim per day, streak to day 7 mega pack, then day 1 again"] = function()
+	local d = P.defaultData()
+	for i = 1, 7 do
+		eq((P.claimDaily(d, (20 + i) * DAY)), i)
+		eq((P.claimDaily(d, (20 + i) * DAY + 100)), nil) -- spamming the button gives nothing
+	end
+	eq(d.inventory.vip_30, 2) -- day 6 + mega pack
+	eq(d.inventory.auto_30, 2)
+	eq((P.claimDaily(d, 28 * DAY)), 1)
+end
+
+tests["daily: missing a day restarts the streak"] = function()
+	local d = P.defaultData()
+	P.claimDaily(d, 30 * DAY)
+	P.claimDaily(d, 31 * DAY)
+	eq(d.dailyDay, 2)
+	eq((P.claimDaily(d, 33 * DAY)), 1)
+end
+
+tests["inventory: using a boost starts its timer, only if owned"] = function()
+	local d = P.defaultData()
+	eq(P.useItem(d, "vip_15"), false)
+	eq(P.useItem(d, "nope"), false)
+	d.inventory.vip_15 = 2
+	eq(P.useItem(d, "vip_15"), true)
+	eq(d.vipLeft, 900)
+	eq(d.inventory.vip_15, 1)
+	eq(P.useItem(d, "vip_15"), true)
+	eq(d.vipLeft, 1800) -- stacks
+	eq(d.inventory.vip_15, nil)
+	d.inventory.x2_10 = 1
+	P.useItem(d, "x2_10")
+	eq(d.boostLeft, 600)
+end
+
+tests["inventory: timers tick down and report when they end"] = function()
+	local d = P.defaultData()
+	d.autoLeft = 2
+	eq(P.tickEffects(d, 1), false)
+	eq(P.tickEffects(d, 1), true)
+	eq(d.autoLeft, 0)
+	eq(P.tickEffects(d, 1), false)
+end
+
 tests["tierIndex boundaries"] = function()
 	eq(P.tierIndex(0), 1)
 	eq(P.tierIndex(999), 1)

@@ -192,7 +192,7 @@ local function wear(player: Player)
 	part.Size = source.Size * stretch
 	part:SetAttribute("FaceHeight", part.Size.Y * headShare) -- crown .. chin, for exercise points
 	local topY = head.Size.Y / 2 - part.Size.Y / 2 - fit.topInset
-	local offset = CFrame.new(0, topY, 0) * CFrame.Angles(0, math.rad(fit.rotateY), 0)
+	local offset = CFrame.new(0, topY, -(fit.forward or 0) * head.Size.Z) * CFrame.Angles(0, math.rad(fit.rotateY), 0)
 
 	local weld = Instance.new("Weld")
 	weld.Part0 = head

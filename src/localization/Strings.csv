@@ -6,6 +6,27 @@ menu.duels,Duels,,,Duels,Дуэли
 menu.duels_hint,Fight other players,,,Fight other players,Сразись с игроками
 menu.rebirth,Rebirth,,,Rebirth,Перерождение
 menu.rebirth_info,{from} → {to},,,{from} → {to},{from} → {to}
+menu.play,PLAY,,,PLAY,ИГРАТЬ
+daily.title,Daily bonus,,,Daily bonus,Ежедневный бонус
+daily.day,Day {n},,,Day {n},День {n}
+daily.claim,Claim!,,,Claim!,Забрать!
+daily.claimed,Come back tomorrow,,,Come back tomorrow,Приходи завтра
+daily.hint,Come back every day for free boosts. Day 7 is a mega pack!,,,Come back every day for free boosts. Day 7 is a mega pack!,Заходи каждый день за бесплатными бустами. На 7-й день мега-набор!
+daily.added,Added to your inventory!,,,Added to your inventory!,Добавлено в инвентарь!
+daily.mega,MEGA,,,MEGA,МЕГА
+reward.x2,x2 rating & Glow,,,x2 rating & Glow,x2 рейтинг и Glow
+reward.vip,VIP trainers,,,VIP trainers,VIP-тренажёры
+reward.auto,Auto-click,,,Auto-click,Автоклик
+reward.min,{n} min,,,{n} min,{n} мин
+reward.short.x2,x2,,,x2,x2
+reward.short.vip,VIP,,,VIP,VIP
+reward.short.auto,Auto,,,Auto,Авто
+inv.title,Inventory,,,Inventory,Инвентарь
+inv.empty,Empty for now. Claim the daily bonus in the menu!,,,Empty for now. Claim the daily bonus in the menu!,Пока пусто. Забирай ежедневный бонус в меню!
+inv.use,Use,,,Use,Включить
+hud.inventory,Items,,,Items,Вещи
+hud.vip_timer,VIP {t},,,VIP {t},VIP {t}
+hud.auto_timer,Auto {t},,,Auto {t},Авто {t}
 hud.glow,Glow: {n},,,Glow: {n},Glow: {n}
 hud.rating,Rating: {n}/{cap},,,Rating: {n}/{cap},Рейтинг: {n}/{cap}
 hud.rebirth_ready,Rebirth ready!,,,Rebirth ready!,Можно переродиться!
