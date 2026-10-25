@@ -213,7 +213,7 @@ local function refreshTapper()
 	elseif tapper.phase == "stunned" then
 		setStatus(Strings.get("workout.stunned"), Color3.fromRGB(255, 110, 110))
 	elseif os.clock() > statusUntil then
-		setStatus(Strings.get("workout.combo", { n = tapper.combo }), GOLD)
+		setStatus(Strings.get("workout.combo", { n = tostring(tapper.combo) }), GOLD)
 	end
 end
 

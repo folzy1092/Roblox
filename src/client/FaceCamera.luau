@@ -82,7 +82,7 @@ local function start()
 			local eye = seat.CFrame:PointToWorldSpace(Vector3.new(-3.5, 5.5, 6))
 			target = CFrame.lookAt(eye, seat.CFrame:PointToWorldSpace(Vector3.new(0, 2.4, -4.9)))
 		else
-			local eye = h.CFrame:PointToWorldSpace(Vector3.new(0, 0.3, -3.5))
+			local eye = h.CFrame:PointToWorldSpace(Vector3.new(0, 0.15, -2.6))
 			target = CFrame.lookAt(eye, h.Position)
 		end
 		camera.CFrame = from:Lerp(target, eased)

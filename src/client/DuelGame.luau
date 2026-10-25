@@ -5,6 +5,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 
 local DuelRules = require(ReplicatedStorage.Shared.DuelRules)
@@ -110,14 +111,26 @@ end
 
 ---------------------------------------------------------------- match flow
 
+-- the side menu, Glow panel and hotbar would sit on top of your face: hidden during the race
+local function setHud(visible: boolean)
+	local playerGui = player:FindFirstChild("PlayerGui")
+	local hud = playerGui and playerGui:FindFirstChild("Hud")
+	if hud and hud:IsA("ScreenGui") then
+		hud.Enabled = visible
+	end
+	pcall(StarterGui.SetCoreGuiEnabled, StarterGui, Enum.CoreGuiType.Backpack, visible)
+end
+
+-- exercise name: below the face, so it never covers what you're working on
 local function showBanner(text: string, color: Color3)
 	bannerLabel.Text = text
 	bannerLabel.TextColor3 = color
-	bannerLabel.Position = UDim2.fromScale(-0.5, 0.42)
+	bannerLabel.Size = UDim2.fromScale(0.8, 0.09)
+	bannerLabel.Position = UDim2.fromScale(-0.5, 0.8)
 	bannerLabel.Visible = true
-	tween(bannerLabel, 0.3, { Position = UDim2.fromScale(0.5, 0.42) }, Enum.EasingStyle.Back)
+	tween(bannerLabel, 0.3, { Position = UDim2.fromScale(0.5, 0.8) }, Enum.EasingStyle.Back)
 	task.delay(1.1, function()
-		tween(bannerLabel, 0.25, { Position = UDim2.fromScale(1.5, 0.42) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		tween(bannerLabel, 0.25, { Position = UDim2.fromScale(1.5, 0.8) }, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	end)
 end
 
@@ -136,6 +149,7 @@ local function stopLoop()
 		heartbeat = nil
 	end
 	setFace(nil)
+	setHud(true)
 	currentKind = nil
 end
 
@@ -198,6 +212,7 @@ local function onStart(payload: any)
 	active = true
 	-- camera goes to your face during the countdown, so you're ready when it starts
 	workspace.CurrentCamera:SetAttribute("DuelFace", true)
+	setHud(false)
 	task.spawn(countdown)
 	heartbeat = RunService.RenderStepped:Connect(loop)
 end

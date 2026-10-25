@@ -119,7 +119,7 @@ local function wear(player: Player)
 		piece.Size = f.Size * stretch
 		local color = FEATURE_COLORS[f.Name] or head.Color
 		if f.Name == "Lips" then
-			color = head.Color:Lerp(LIP_TINT, 0.5)
+			color = head.Color:Lerp(LIP_TINT, 0.7)
 		end
 		plain(piece, color)
 		piece.CanQuery = false
