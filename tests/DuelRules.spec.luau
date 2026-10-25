@@ -15,7 +15,7 @@ tests["schedule covers the whole duel with all exercise kinds"] = function()
 	for _, seg in s do
 		kinds[seg.kind] = true
 	end
-	truthy(kinds.tap and kinds.rhythm and kinds.hold, "all three kinds appear")
+	truthy(kinds.tap and kinds.stroke and kinds.chew, "all three kinds appear")
 end
 
 tests["schedule is the same for both players (same seed)"] = function()
@@ -72,6 +72,22 @@ tests["unknown events are ignored"] = function()
 	local sc = DuelRules.newScore()
 	eq(DuelRules.apply(sc, "lol"), false)
 	eq(sc.hits + sc.misses, 0)
+end
+
+tests["chew counts taps near the beat, early or late is a miss"] = function()
+	eq(DuelRules.chewJudge(1), "hit")
+	eq(DuelRules.chewJudge(1.15), "hit")
+	eq(DuelRules.chewJudge(0.5), "miss")
+	eq(DuelRules.chewJudge(1.3), "miss")
+end
+
+tests["chew beat speeds up but has a floor"] = function()
+	local beat = DuelRules.CHEW.firstBeat
+	for _ = 1, 100 do
+		beat = DuelRules.nextBeat(beat)
+	end
+	eq(beat, DuelRules.CHEW.minBeat)
+	truthy(DuelRules.nextBeat(0.9) < 0.9, "faster")
 end
 
 return tests

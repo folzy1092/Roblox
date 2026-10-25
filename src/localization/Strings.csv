@@ -42,7 +42,7 @@ rarity.Legendary,LEGENDARY,,,LEGENDARY,ЛЕГЕНДАРНЫЙ
 hud.duels,Duels,,,Duels,Дуэли
 hud.menu,Menu,,,Menu,Меню
 duels.title,Duel Arena,,,Duel Arena,Арена дуэлей
-duels.info,"Challenge players to a looksmaxxing race: same exercises, best accuracy wins. Matches open soon — come check out the arena!",,,"Challenge players to a looksmaxxing race: same exercises, best accuracy wins. Matches open soon — come check out the arena!","Вызывай игроков на скоростную прокачку: одинаковые упражнения, побеждает самый точный. Матчи скоро откроются — загляни на арену!"
+duels.info,"Challenge players to a face-workout race: same exercises on your own face, fastest and most accurate wins!",,,"Challenge players to a face-workout race: same exercises on your own face, fastest and most accurate wins!","Вызывай игроков на скоростную прокачку лица: одинаковые упражнения на своём лице, побеждает самый быстрый и точный!"
 duels.go,Go to arena,,,Go to arena,На арену
 hud.set_timer,Set: {t},,,Set: {t},Подход: {t}
 trainer.jawball,Jaw Ball Trainer,,,Jaw Ball Trainer,Тренажёр Jaw-шара
@@ -81,6 +81,7 @@ hud.auto_on,Auto: ON,,,Auto: ON,Авто: ВКЛ
 hud.auto_off,Auto: OFF,,,Auto: OFF,Авто: ВЫКЛ
 workout.recover,Recover now — {price} R$,,,Recover now — {price} R$,Восстановиться — {price} R$
 workout.recovered,Back in shape!,,,Back in shape!,Снова в форме!
+workout.chew_hint,Tap the jaw when the ring closes!,,,Tap the jaw when the ring closes!,"Жми на челюсть, когда кольцо сойдётся!"
 duels.how,Pick a time and challenge a player. Same exercises for both — fastest and most accurate wins!,,,Pick a time and challenge a player. Same exercises for both — fastest and most accurate wins!,Выбери время и вызови игрока. Упражнения одинаковые — побеждает самый быстрый и точный!
 duels.nobody,Nobody else here yet — invite a friend!,,,Nobody else here yet — invite a friend!,Тут пока никого — позови друга!
 duels.challenge,Fight!,,,Fight!,В бой!
@@ -93,11 +94,10 @@ duel.invited,{name} challenges you to a {t} duel!,,,{name} challenges you to a {
 duel.accept,Accept,,,Accept,Принять
 duel.decline,Decline,,,Decline,Отказ
 duel.go,GO!,,,GO!,ВПЕРЁД!
-duel.hold,HOLD,,,HOLD,ДЕРЖИ
 duel.leave,Give up,,,Give up,Сдаться
-duel.kind.tap,BONE TAP! Hit the spots,,,BONE TAP! Hit the spots,BONE TAP! Бей по точкам
-duel.kind.rhythm,CHEW! Tap on the beat,,,CHEW! Tap on the beat,ЖУЙ! Жми в ритм
-duel.kind.hold,MEW! Hold in the green,,,MEW! Hold in the green,МЬЮИНГ! Держи в зелёном
+duel.kind.tap,BONE TAP! Bonk the glowing bones,,,BONE TAP! Bonk the glowing bones,BONE TAP! Бей по светящимся костям
+duel.kind.stroke,GUA SHA! Drag through the dots,,,GUA SHA! Drag through the dots,ГУА ША! Веди по точкам
+duel.kind.chew,CHEW! Tap the jaw when the ring closes,,,CHEW! Tap the jaw when the ring closes,"ЖУЙ! Жми на челюсть, когда кольцо сойдётся"
 duel.result.win,VICTORY!,,,VICTORY!,ПОБЕДА!
 duel.result.lose,DEFEAT,,,DEFEAT,ПОРАЖЕНИЕ
 duel.result.draw,DRAW,,,DRAW,НИЧЬЯ

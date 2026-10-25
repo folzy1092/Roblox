@@ -4,6 +4,8 @@
 -- Gua Sha: dots run along your jawline / under your cheekbone; hold and drag through them.
 -- Markers sit on the real head surface (HeadShape.surface, same shape as HeadMesh) and hits are
 -- checked on screen. Rules live in shared/MiniGames; reps/mistakes go to the server (Rep / Fail).
+-- Duels (DuelGame) force a mode with Workout.setDuel: same face exercises, but every hit/miss goes
+-- to the duel instead of Rep/Fail, plus the duel-only "chew" rhythm on the jaw.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -14,6 +16,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local HeadShape = require(ReplicatedStorage.Shared.HeadShape)
 local Looks = require(ReplicatedStorage.Shared.Looks)
 local MiniGames = require(ReplicatedStorage.Shared.MiniGames)
+local DuelRules = require(ReplicatedStorage.Shared.DuelRules)
 local Strings = require(script.Parent.Strings)
 local Ui = require(script.Parent.Ui)
 
@@ -44,6 +47,10 @@ local markers: { Part } = {} -- zone markers (tap) or path dots (stroke)
 local statusUntil = 0
 local hammerUntil = 0
 local hammerZone: Vector3? = nil
+local duelKind: string? = nil -- forced by a duel
+local duelEvent: ((string) -> ())? = nil
+local chew: any = nil -- { side, beat, beatStart, tapped, ring }
+local CHEW_SPOTS = { { x = -0.72, y = -0.38 }, { x = 0.72, y = -0.38 } } -- masseters
 
 local function head(): BasePart?
 	local character = player.Character
@@ -160,6 +167,28 @@ local function hurt(strength: number)
 	TweenService:Create(flash, TweenInfo.new(0.5), { BackgroundTransparency = 1 }):Play()
 end
 
+-- little neon sparks flying off a hit point
+local function sparks(at: Vector3, color: Color3)
+	for _ = 1, 7 do
+		local p = localPart("Spark", Vector3.one * 0.07, color, Enum.PartType.Ball)
+		p.Position = at
+		local dir = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5).Unit
+		TweenService:Create(p, TweenInfo.new(0.35), { Position = at + dir * 0.6, Transparency = 1, Size = Vector3.one * 0.02 }):Play()
+		task.delay(0.36, p.Destroy, p)
+	end
+end
+
+-- duel: count it for the match; normal play: rep / penalty on the server
+local function scored(event: string)
+	if duelEvent then
+		duelEvent(if event == "hit" then "hit" else "miss")
+	elseif event == "hit" then
+		remotes.Rep:FireServer()
+	elseif event == "miss" or event == "rest_fail" then
+		remotes.Fail:FireServer(event)
+	end
+end
+
 ---------------------------------------------------------------- Bone Tapper
 
 local function startTapper(h: BasePart)
@@ -230,7 +259,7 @@ end
 local recoverButton: TextButton
 local function refreshRecover()
 	if recoverButton then
-		recoverButton.Visible = tapper ~= nil and tapper.phase == "stunned"
+		recoverButton.Visible = tapper ~= nil and tapper.phase == "stunned" and not duelKind
 	end
 end
 
@@ -278,14 +307,13 @@ local function onTap(h: BasePart, screen: Vector2)
 	local ray = workspace.CurrentCamera:ScreenPointToRay(screen.X, screen.Y)
 	local landing = if best then markers[best].Position else ray.Origin + ray.Direction * (h.Position - ray.Origin).Magnitude
 	bonk(landing)
+	scored(result)
 	if result == "hit" then
-		remotes.Rep:FireServer()
+		sparks(landing, GOLD)
 	elseif result == "miss" then
-		remotes.Fail:FireServer("miss")
 		hurt(0.45)
 		setStatus(Strings.get("workout.ouch"), Color3.fromRGB(255, 110, 110), 1)
 	elseif result == "rest_fail" then
-		remotes.Fail:FireServer("rest_fail")
 		hurt(0.25)
 		setStatus(Strings.get("workout.crack"), Color3.fromRGB(255, 80, 80), 1.5)
 	end
@@ -329,12 +357,93 @@ local function onStrokeMove(h: BasePart, screen: Vector2)
 		return
 	end
 	local point = stroke.points[stroke.reached + 1]
-	if stroke:move(point[1], point[2]) then
-		remotes.Rep:FireServer()
+	local before = stroke.reached
+	local finished = stroke:move(point[1], point[2])
+	if duelKind and stroke.reached > before then
+		-- in a duel every dot counts, so the race feels fast
+		sparks(nextDot.Position, DONE)
+		scored("hit")
+	end
+	if finished then
+		if not duelKind then
+			scored("hit")
+		end
 		setStatus(Strings.get("workout.stroke_done"), DONE, 0.8)
 		strokeStep = strokeStep % #MiniGames.Stroke.CYCLE + 1
 		startStroke(h)
 		stroke:press() -- keep holding to flow into the next stroke
+	end
+end
+
+---------------------------------------------------------------- Chew (duel only)
+-- A ring closes on one jaw muscle; tap it right when the ring meets the dot. Sides alternate.
+
+local function startChew(h: BasePart)
+	clearMarkers()
+	for i in CHEW_SPOTS do
+		markers[i] = localPart("Jaw", markerSize(h, 0.14), DIM, Enum.PartType.Ball)
+		addGlow(markers[i])
+	end
+	local ring = Instance.new("BillboardGui")
+	ring.Name = "ChewRing"
+	ring.AlwaysOnTop = true
+	ring.LightInfluence = 0
+	Ui.make("Frame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Parent = ring,
+	}, { Ui.corner(0.5), Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 4 }) })
+	ring.Parent = folder
+	chew = { side = 1, beat = DuelRules.CHEW.firstBeat, beatStart = os.clock(), tapped = false, ring = ring }
+	setStatus(Strings.get("workout.chew_hint"), GOLD, 2)
+end
+
+local function refreshChew(h: BasePart)
+	local phase = (os.clock() - chew.beatStart) / chew.beat
+	if phase > DuelRules.CHEW.late then
+		if not chew.tapped then
+			scored("miss")
+			setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.5)
+		end
+		chew.side = 3 - chew.side
+		chew.beatStart = os.clock()
+		chew.beat = DuelRules.nextBeat(chew.beat)
+		chew.tapped = false
+		phase = 0
+	end
+	local onBeat = math.abs(phase - 1) <= DuelRules.CHEW.window
+	for i, m in markers do
+		local lit = i == chew.side and not chew.tapped
+		m.Color = if not lit then DIM elseif onBeat then GOLD else Color3.fromRGB(255, 120, 200)
+		m.Transparency = if lit then 0.05 else 0.45
+	end
+	-- ring: 4x the dot when the beat starts, exactly the dot at phase 1
+	local d = markerSize(h, 0.14).X
+	local scale = 1 + 3 * math.max(0, 1 - phase)
+	chew.ring.Adornee = markers[chew.side]
+	chew.ring.Size = UDim2.fromScale(d * scale, d * scale)
+	chew.ring.Enabled = not chew.tapped
+	if os.clock() > statusUntil then
+		setStatus(Strings.get("workout.chew_hint"), GOLD)
+	end
+end
+
+local function onChewTap(h: BasePart, screen: Vector2)
+	if chew.tapped or not onFace(h, screen) then
+		return
+	end
+	local target = markers[chew.side]
+	local p, visible = screenOf(target.Position)
+	local phase = (os.clock() - chew.beatStart) / chew.beat
+	local result = if visible and (p - screen).Magnitude <= hitRadius() then DuelRules.chewJudge(phase) else "miss"
+	scored(result)
+	if result == "hit" then
+		chew.tapped = true
+		sparks(target.Position, GOLD)
+		setStatus(Strings.get("workout.stroke_done"), DONE, 0.4)
+	else
+		hurt(0.6)
+		setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.5)
 	end
 end
 
@@ -346,7 +455,10 @@ local function setMode(newMode: string?, h: BasePart?)
 	end
 	mode = newMode
 	clearMarkers()
-	tapper, stroke = nil, nil
+	if chew then
+		chew.ring:Destroy()
+	end
+	tapper, stroke, chew = nil, nil, nil
 	roller.Transparency = 1
 	statusLabel.Visible = newMode ~= nil
 	if not h then
@@ -357,7 +469,17 @@ local function setMode(newMode: string?, h: BasePart?)
 	elseif newMode == "stroke" then
 		startStroke(h)
 		setStatus(Strings.get("workout.stroke_hint"), GOLD)
+	elseif newMode == "chew" then
+		startChew(h)
 	end
+end
+
+-- A duel takes over the face: `kind` = "tap" | "stroke" | "chew", nil gives it back.
+-- `onEvent("hit" | "miss")` gets every result instead of the Rep / Fail remotes.
+function Workout.setDuel(kind: string?, onEvent: ((string) -> ())?)
+	duelKind = kind
+	duelEvent = if kind then onEvent else nil
+	setMode(nil, nil) -- the next frame starts the new mode from scratch
 end
 
 local function isPress(input: InputObject): boolean
@@ -433,13 +555,17 @@ function Workout.init()
 	RunService.RenderStepped:Connect(function()
 		local h = head()
 		local itemId = heldItem()
-		setMode(if itemId and h then MiniGames.kindOf(itemId) else nil, h)
+		local wanted = duelKind or (if itemId then MiniGames.kindOf(itemId) else nil)
+		setMode(if h then wanted else nil, h)
 		if not h or not mode then
 			hideExtras()
 			return
 		end
 		if mode == "tap" then
 			if tapper:update(os.clock()) == "timeout" then
+				if duelKind then
+					scored("miss") -- too slow counts in a race
+				end
 				setStatus(Strings.get("workout.miss"), Color3.fromRGB(255, 140, 140), 0.6)
 			end
 			for i, zone in MiniGames.Zones do
@@ -450,6 +576,12 @@ function Workout.init()
 			animateHammer(h)
 			animateStars(h)
 			refreshRecover()
+		elseif mode == "chew" then
+			for i, spot in CHEW_SPOTS do
+				markers[i].CFrame = CFrame.new(facePoint(h, spot.x, spot.y))
+			end
+			refreshChew(h)
+			syncGlow()
 		else
 			for i, p in stroke.points do
 				markers[i].CFrame = CFrame.new(facePoint(h, p[1], p[2]))
@@ -467,6 +599,8 @@ function Workout.init()
 		local screen = Vector2.new(input.Position.X, input.Position.Y)
 		if mode == "tap" then
 			onTap(h, screen)
+		elseif mode == "chew" then
+			onChewTap(h, screen)
 		else
 			stroke:press()
 			onStrokeMove(h, screen)

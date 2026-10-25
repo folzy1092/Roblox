@@ -38,6 +38,10 @@ local function trainerSeat(): BasePart?
 end
 
 local function heldMiniGame(): boolean
+	-- a duel puts you in a face workout too (DuelGame sets this on the camera)
+	if workspace.CurrentCamera:GetAttribute("DuelFace") then
+		return true
+	end
 	local character = player.Character
 	local tool = character and character:FindFirstChildOfClass("Tool")
 	return tool ~= nil and MiniGames.kindOf(tool.Name) ~= nil
@@ -198,6 +202,11 @@ function FaceCamera.init()
 			local piece = character:FindFirstChild(name)
 			if piece and piece:IsA("BasePart") then
 				piece.LocalTransparencyModifier = 0
+				for _, feature in piece:GetChildren() do -- lips, brows, eyes
+					if feature:IsA("BasePart") then
+						feature.LocalTransparencyModifier = 0
+					end
+				end
 			end
 		end
 	end)

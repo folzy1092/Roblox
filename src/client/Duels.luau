@@ -141,7 +141,7 @@ function Duels.init(): () -> ()
 			end
 		end
 		empty.Visible = count == 0
-		winsLabel.Text = Strings.get("duels.wins", { n = player:GetAttribute("DuelWins") or 0 })
+		winsLabel.Text = Strings.get("duels.wins", { n = tostring(player:GetAttribute("DuelWins") or 0) })
 	end
 
 	local go = Ui.button({
@@ -168,6 +168,9 @@ function Duels.init(): () -> ()
 		end
 	end
 
+	DuelGame.onStart(function()
+		setOpen(false)
+	end)
 	go.Activated:Connect(function()
 		setOpen(false)
 		local target = workspace:GetAttribute("ArenaSpawn")

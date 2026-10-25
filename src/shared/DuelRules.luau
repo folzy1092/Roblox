@@ -1,8 +1,9 @@
 -- Duel rules shared by server and client. Pure logic, unit-tested with Lune.
--- A duel is a race of exercises: both players get the same schedule (same seed).
---   tap    : hit glowing spots before they fade (Bone Tapper)
---   rhythm : tap when the shrinking ring meets the circle (chewing rhythm)
---   hold   : hold while the needle is in the green band (mewing posture)
+-- A duel is a speed race of face workouts on your own avatar's face (camera on the face):
+-- both players get the same schedule (same seed).
+--   tap    : Bone Tapper, bonk the glowing bone before it fades
+--   stroke : Gua Sha, drag through the dots along the jaw / cheekbone
+--   chew   : jaw rhythm, tap the jaw muscle when the shrinking ring closes on it
 -- Score = points (with combo bonus) x accuracy.
 local DuelRules = {}
 
@@ -11,7 +12,11 @@ DuelRules.SEGMENT = 15 -- seconds per exercise
 DuelRules.COUNTDOWN = 3
 DuelRules.INVITE_SECONDS = 15
 DuelRules.MAX_EVENTS_PER_SEC = 8
-DuelRules.KINDS = { "tap", "rhythm", "hold" }
+DuelRules.KINDS = { "tap", "stroke", "chew" }
+
+-- chew rhythm: a ring closes on the jaw in `beat` seconds; tap within WINDOW of the beat (as a
+-- share of the beat). The beat speeds up during the segment.
+DuelRules.CHEW = { firstBeat = 0.95, minBeat = 0.55, speedUp = 0.96, window = 0.2, late = 1.25 }
 
 local function lcg(seed: number): () -> number
 	local state = (seed * 7919 + 17) % 2147483647
@@ -84,6 +89,16 @@ end
 
 function DuelRules.final(score: Score): number
 	return math.floor(score.points * DuelRules.accuracy(score))
+end
+
+-- Chew tap at `phase` (time since the beat started / beat length; 1 = ring closed).
+function DuelRules.chewJudge(phase: number): string
+	return if math.abs(phase - 1) <= DuelRules.CHEW.window then "hit" else "miss"
+end
+
+-- Next beat length after one beat.
+function DuelRules.nextBeat(beat: number): number
+	return math.max(DuelRules.CHEW.minBeat, beat * DuelRules.CHEW.speedUp)
 end
 
 -- Sliding one-second window of event times. Mutates `window`.

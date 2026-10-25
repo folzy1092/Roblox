@@ -1,15 +1,16 @@
--- Duel client: invite popup, 3-2-1 countdown, three bright exercise mini-games on a timer,
+-- Duel client: invite popup, 3-2-1 countdown, then a speed race of face workouts on your OWN
+-- avatar face (camera on the face, Workout.setDuel drives Bone Tapper / Gua Sha / chew on it),
 -- live tug-of-war score bar, combo pops, hit/miss flashes, results screen with confetti.
 -- Talks to server/Duels through the "Duel" RemoteEvent; the server owns the real score.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 
 local DuelRules = require(ReplicatedStorage.Shared.DuelRules)
 local Strings = require(script.Parent.Strings)
 local Ui = require(script.Parent.Ui)
+local Workout = require(script.Parent.Workout)
 
 local player = Players.LocalPlayer
 local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Duel") :: RemoteEvent
@@ -18,14 +19,13 @@ local BLUE = Color3.fromRGB(70, 160, 255)
 local RED = Color3.fromRGB(255, 75, 95)
 local GOLD = Color3.fromRGB(255, 210, 70)
 local GREEN = Color3.fromRGB(90, 230, 130)
-local KIND_COLORS = { tap = RED, rhythm = Color3.fromRGB(255, 120, 200), hold = Color3.fromRGB(90, 200, 255) }
+local KIND_COLORS = { tap = RED, stroke = Color3.fromRGB(200, 130, 255), chew = Color3.fromRGB(255, 120, 200) }
 
 local DuelGame = {}
 
 local gui: ScreenGui
 local toastLabel: TextLabel
 local root: Frame -- full-screen duel overlay
-local arena: Frame -- exercise area
 local myBar: Frame
 local myScoreLabel: TextLabel
 local theirScoreLabel: TextLabel
@@ -42,7 +42,6 @@ local duration = 0
 local currentKind: string? = nil
 local localScore = DuelRules.newScore()
 local serverMine, serverTheirs = 0, 0
-local kindState: any = nil
 local heartbeat: RBXScriptConnection? = nil
 
 local function serverNow(): number
@@ -102,223 +101,12 @@ local function report(event: string)
 	end
 end
 
--- little burst of sparks where you hit
-local function burst(pos: UDim2, color: Color3)
-	for i = 1, 6 do
-		local a = i / 6 * math.pi * 2
-		local spark = circle(arena, {
-			Position = pos,
-			Size = UDim2.fromScale(0.04, 0.04),
-			BackgroundColor3 = color,
-			ZIndex = 8,
-		})
-		local target = pos + UDim2.fromScale(math.cos(a) * 0.12, math.sin(a) * 0.12)
-		tween(spark, 0.35, { Position = target, BackgroundTransparency = 1, Size = UDim2.fromScale(0.01, 0.01) })
-		task.delay(0.36, spark.Destroy, spark)
-	end
+---------------------------------------------------------------- face workout
+
+local function setFace(kind: string?)
+	workspace.CurrentCamera:SetAttribute("DuelFace", kind ~= nil)
+	Workout.setDuel(kind, report)
 end
-
----------------------------------------------------------------- exercises
-
-local function clearArena()
-	for _, child in arena:GetChildren() do
-		if child:IsA("GuiObject") and child.Name ~= "Frame_bg" then
-			child:Destroy()
-		end
-	end
-	kindState = nil
-end
-
--- TAP: glowing spots pop up and shrink; hit them before they vanish.
-local function startTap()
-	kindState = { spots = {}, nextSpawn = 0, interval = 0.75 }
-	-- background button under the spots: a click that hits no spot is a miss
-	local bg = Ui.make("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", ZIndex = 4, Parent = arena })
-	bg.Activated:Connect(function()
-		report("miss")
-	end)
-end
-
-local function spawnSpot()
-	local color = RED:Lerp(GOLD, math.random())
-	local spot = Ui.make("TextButton", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(math.random(15, 85) / 100, math.random(15, 85) / 100),
-		Size = UDim2.fromScale(0.2, 0.2),
-		BackgroundColor3 = color,
-		Text = "",
-		AutoButtonColor = false,
-		ZIndex = 5,
-		Parent = arena,
-	}, {
-		Ui.corner(0.5),
-		Ui.make("UIAspectRatioConstraint", { AspectRatio = 1 }),
-		Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 3 }),
-	})
-	local life = 1.25
-	tween(spot, life, { Size = UDim2.fromScale(0.05, 0.05), BackgroundTransparency = 0.3 }, Enum.EasingStyle.Linear)
-	local entry = { gui = spot, expires = os.clock() + life }
-	table.insert(kindState.spots, entry)
-	spot.Activated:Connect(function()
-		if entry.done then
-			return
-		end
-		entry.done = true
-		burst(spot.Position, color)
-		spot:Destroy()
-		report("hit")
-	end)
-end
-
-local function stepTap()
-	local now = os.clock()
-	if now >= kindState.nextSpawn then
-		spawnSpot()
-		kindState.interval = math.max(0.4, kindState.interval * 0.985) -- gets faster
-		kindState.nextSpawn = now + kindState.interval
-	end
-	for i = #kindState.spots, 1, -1 do
-		local e = kindState.spots[i]
-		if e.done then
-			table.remove(kindState.spots, i)
-		elseif now > e.expires then
-			e.done = true
-			e.gui:Destroy()
-			table.remove(kindState.spots, i)
-			report("miss")
-		end
-	end
-end
-
--- RHYTHM: a ring shrinks onto the circle; tap when they meet.
-local function startRhythm()
-	local target = circle(arena, {
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.28, 0.28),
-		BackgroundColor3 = KIND_COLORS.rhythm,
-		ZIndex = 4,
-	})
-	local ring = circle(arena, {
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.9, 0.9),
-		BackgroundTransparency = 1,
-		ZIndex = 5,
-	})
-	Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 5, Parent = ring })
-	local pad = Ui.make("TextButton", {
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Text = "",
-		ZIndex = 6,
-		Parent = arena,
-	})
-	kindState = { target = target, ring = ring, beatStart = os.clock(), beat = 0.95, tapped = false }
-	pad.Activated:Connect(function()
-		local s = kindState
-		if not s or not s.ring then
-			return
-		end
-		local t = (os.clock() - s.beatStart) / s.beat -- 1 = ring on target
-		if math.abs(t - 1) <= 0.16 and not s.tapped then
-			s.tapped = true
-			burst(UDim2.fromScale(0.5, 0.5), KIND_COLORS.rhythm)
-			s.target.Size = UDim2.fromScale(0.36, 0.36)
-			tween(s.target, 0.2, { Size = UDim2.fromScale(0.28, 0.28) }, Enum.EasingStyle.Back)
-			report("hit")
-		else
-			report("miss")
-		end
-	end)
-end
-
-local function stepRhythm()
-	local s = kindState
-	local t = (os.clock() - s.beatStart) / s.beat
-	s.ring.Size = UDim2.fromScale(0.9 - 0.62 * t, 0.9 - 0.62 * t)
-	if t > 1.18 then
-		if not s.tapped then
-			report("miss")
-		end
-		s.beatStart = os.clock()
-		s.beat = math.max(0.6, s.beat * 0.97)
-		s.tapped = false
-	end
-end
-
--- HOLD: keep holding while the needle is inside the green band, let go when it's outside.
-local function startHold()
-	local track = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.3, 0.5),
-		Size = UDim2.fromScale(0.12, 0.85),
-		BackgroundColor3 = Color3.fromRGB(30, 28, 45),
-		ZIndex = 4,
-		Parent = arena,
-	}, { Ui.corner(0.3) })
-	local band = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Size = UDim2.fromScale(1, 0.3),
-		BackgroundColor3 = GREEN,
-		BackgroundTransparency = 0.2,
-		ZIndex = 5,
-		Parent = track,
-	}, { Ui.corner(0.3) })
-	local needle = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Size = UDim2.fromScale(1.5, 0.035),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		ZIndex = 6,
-		Parent = track,
-	}, { Ui.corner(0.5) })
-	local button = Ui.make("TextButton", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.68, 0.5),
-		Size = UDim2.fromScale(0.42, 0.42),
-		BackgroundColor3 = KIND_COLORS.hold,
-		Text = Strings.get("duel.hold"),
-		Font = Enum.Font.FredokaOne,
-		TextScaled = true,
-		TextColor3 = Color3.new(1, 1, 1),
-		AutoButtonColor = false,
-		ZIndex = 5,
-		Parent = arena,
-	}, { Ui.corner(0.5), Ui.make("UIAspectRatioConstraint", { AspectRatio = 1 }), Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 4 }) })
-	kindState = { band = band, needle = needle, button = button, holding = false, nextTick = os.clock() + 0.4, t0 = os.clock() }
-	button.MouseButton1Down:Connect(function()
-		kindState.holding = true
-		button.Size = UDim2.fromScale(0.38, 0.38)
-	end)
-	local function release()
-		if kindState and kindState.button then
-			kindState.holding = false
-			kindState.button.Size = UDim2.fromScale(0.42, 0.42)
-		end
-	end
-	button.MouseButton1Up:Connect(release)
-	button.MouseLeave:Connect(release)
-end
-
-local function stepHold()
-	local s = kindState
-	local t = os.clock() - s.t0
-	local needleY = 0.5 + 0.42 * math.sin(t * 1.7) * math.cos(t * 0.6)
-	local bandY = 0.5 + 0.3 * math.sin(t * 0.45 + 1)
-	s.needle.Position = UDim2.fromScale(0.5, needleY)
-	s.band.Position = UDim2.fromScale(0, bandY)
-	local inside = math.abs(needleY - bandY) <= 0.15
-	s.band.BackgroundColor3 = if inside then GREEN else Color3.fromRGB(60, 150, 90)
-	if os.clock() >= s.nextTick then
-		s.nextTick = os.clock() + 0.4
-		if inside == s.holding then
-			report("hit")
-		elseif inside or s.holding then
-			report("miss")
-		end
-	end
-end
-
-local STARTERS = { tap = startTap, rhythm = startRhythm, hold = startHold }
-local STEPPERS = { tap = stepTap, rhythm = stepRhythm, hold = stepHold }
 
 ---------------------------------------------------------------- match flow
 
@@ -347,7 +135,7 @@ local function stopLoop()
 		heartbeat:Disconnect()
 		heartbeat = nil
 	end
-	clearArena()
+	setFace(nil)
 	currentKind = nil
 end
 
@@ -361,16 +149,11 @@ local function loop()
 	timerLabel.TextColor3 = if left <= 10 then RED else Color3.new(1, 1, 1)
 	local kind = DuelRules.kindAt(schedule, t)
 	if kind ~= currentKind then
-		clearArena()
 		currentKind = kind
+		setFace(kind)
 		if kind then
-			arena.BackgroundColor3 = KIND_COLORS[kind]:Lerp(Color3.new(0, 0, 0), 0.75)
 			showBanner(Strings.get("duel.kind." .. kind), KIND_COLORS[kind])
-			STARTERS[kind]()
 		end
-	end
-	if kind and kindState then
-		STEPPERS[kind]()
 	end
 end
 
@@ -394,7 +177,15 @@ local function countdown()
 	end)
 end
 
+local onStartHooks: { () -> () } = {}
+function DuelGame.onStart(fn: () -> ())
+	table.insert(onStartHooks, fn)
+end
+
 local function onStart(payload: any)
+	for _, fn in onStartHooks do
+		fn()
+	end
 	schedule = DuelRules.schedule(payload.seed, payload.duration)
 	startAt = payload.startAt
 	duration = payload.duration
@@ -405,12 +196,14 @@ local function onStart(payload: any)
 	comboLabel.Text = "x0"
 	updateBars()
 	active = true
+	-- camera goes to your face during the countdown, so you're ready when it starts
+	workspace.CurrentCamera:SetAttribute("DuelFace", true)
 	task.spawn(countdown)
 	heartbeat = RunService.RenderStepped:Connect(loop)
 end
 
 local function confetti()
-	local colors = { GOLD, RED, BLUE, GREEN, KIND_COLORS.rhythm }
+	local colors = { GOLD, RED, BLUE, GREEN, KIND_COLORS.chew }
 	for _ = 1, 40 do
 		local piece = Ui.make("Frame", {
 			Position = UDim2.fromScale(math.random(), -0.05),
@@ -462,7 +255,7 @@ local function onFinish(payload: any)
 	Ui.label({
 		Size = UDim2.fromScale(0.9, 0.1),
 		Position = UDim2.fromScale(0.05, 0.55),
-		Text = Strings.get("duel.accuracy", { n = math.floor(payload.accuracy * 100) })
+		Text = Strings.get("duel.accuracy", { n = tostring(math.floor(payload.accuracy * 100)) })
 			.. (if payload.forfeit then "  " .. Strings.get("duel.forfeit") else ""),
 		Font = Enum.Font.GothamBold,
 		TextColor3 = Color3.fromRGB(210, 210, 230),
@@ -472,7 +265,7 @@ local function onFinish(payload: any)
 	Ui.label({
 		Size = UDim2.fromScale(0.9, 0.1),
 		Position = UDim2.fromScale(0.05, 0.67),
-		Text = Strings.get("duel.reward", { n = payload.glow }),
+		Text = Strings.get("duel.reward", { n = Strings.num(payload.glow) }),
 		TextColor3 = GOLD,
 		ZIndex = 31,
 		Parent = results,
@@ -552,11 +345,11 @@ local function build()
 	})
 	Ui.corner(0.3).Parent = toastLabel
 
+	-- see-through: the exercises happen on your 3D face behind it, clicks pass through
 	root = Ui.make("Frame", {
 		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.fromRGB(10, 8, 18),
-		BackgroundTransparency = 0.35,
-		Active = true,
+		BackgroundTransparency = 1,
+		Active = false,
 		Visible = false,
 		Parent = gui,
 	})
@@ -578,17 +371,8 @@ local function build()
 	Ui.label({ Name = "MyName", Size = UDim2.fromScale(0.25, 0.035), Position = UDim2.fromScale(0.15, 0.105), Text = player.DisplayName, TextColor3 = BLUE, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 10, Parent = root })
 	Ui.label({ Name = "OpponentName", Size = UDim2.fromScale(0.25, 0.035), Position = UDim2.fromScale(0.6, 0.105), TextColor3 = RED, TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 10, Parent = root })
 	timerLabel = Ui.label({ AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0.105), Size = UDim2.fromScale(0.15, 0.06), ZIndex = 10, Parent = root })
-	comboLabel = Ui.label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.85, 0.5), Size = UDim2.fromScale(0.14, 0.065), Text = "x0", ZIndex = 10, Parent = root })
+	comboLabel = Ui.label({ AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.85, 0.5), Size = UDim2.fromScale(0.14, 0.065), Text = "x0", TextStrokeTransparency = 0, ZIndex = 10, Parent = root })
 
-	arena = Ui.make("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.56),
-		Size = UDim2.fromScale(0.62, 0.66),
-		BackgroundColor3 = Color3.fromRGB(30, 20, 40),
-		Active = true,
-		ZIndex = 3,
-		Parent = root,
-	}, { Ui.corner(0.06), Ui.make("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 0.5 }), Ui.make("UIAspectRatioConstraint", { AspectRatio = 1.3 }) })
 	bannerLabel = Ui.label({
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.42),
@@ -641,7 +425,6 @@ function DuelGame.init()
 			onFinish(a1)
 		end
 	end)
-	local _ = UserInputService
 end
 
 return DuelGame

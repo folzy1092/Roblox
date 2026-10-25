@@ -1,7 +1,8 @@
 -- Own tier head pack (tools/blender/make_heads.py): the MeshPart for the player's tier is
 -- worn over the avatar head (welded, tinted with the skin color); the original head and its
 -- face are hidden, hair and hats stay attached to it. Server-side, so everyone sees it.
--- Expects ReplicatedStorage.TierHeads with MeshParts named Head1 .. Head8 (imported in Studio).
+-- Expects ReplicatedStorage.TierHeads.Head1 .. Head8 (imported in Studio): a Model with the skin
+-- MeshPart "Head" and colored face parts, or a single MeshPart.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -11,17 +12,58 @@ local HeadWear = {}
 
 local warned = false
 
-local function template(tier: number): MeshPart?
+-- texture-free face: each face feature is its own colored mesh (tools/blender/mh_parts.py)
+local FEATURE_COLORS = {
+	Brows = Color3.fromRGB(48, 34, 26),
+	EyeWhites = Color3.fromRGB(238, 236, 230),
+	Irises = Color3.fromRGB(74, 46, 28),
+}
+local LIP_TINT = Color3.fromRGB(176, 72, 74)
+
+-- Head<n> is either a Model (Head + Lips/Brows/EyeWhites/Irises MeshParts, multi-part import)
+-- or a single MeshPart (old pack). Returns the skin part and the feature parts.
+local function template(tier: number): (MeshPart?, { MeshPart })
 	local folder = ReplicatedStorage:FindFirstChild("TierHeads")
-	local part = folder and folder:FindFirstChild("Head" .. tier)
-	if part and part:IsA("MeshPart") then
-		return part
+	local item = folder and folder:FindFirstChild("Head" .. tier)
+	if item and item:IsA("MeshPart") then
+		return item, {}
+	end
+	if item and item:IsA("Model") then
+		local skin = item:FindFirstChild("Head", true)
+		if skin and skin:IsA("MeshPart") then
+			local features = {}
+			for _, d in item:GetDescendants() do
+				if d:IsA("MeshPart") and d ~= skin then
+					table.insert(features, d)
+				end
+			end
+			return skin, features
+		end
 	end
 	if not warned then
 		warned = true
 		warn("[HeadWear] ReplicatedStorage.TierHeads.Head1..Head8 not found; keeping default heads")
 	end
-	return nil
+	return nil, {}
+end
+
+local function plain(part: BasePart, color: Color3)
+	part.Anchored = false
+	part.CanCollide = false
+	part.CanTouch = false
+	part.Massless = true
+	part.Color = color
+	part.Material = Enum.Material.SmoothPlastic
+	-- no uploaded face textures: Roblox auto-moderation flagged the head atlases as "off-site
+	-- links". Imported SurfaceAppearances override Color (pale/blue), so drop them too.
+	if part:IsA("MeshPart") then
+		part.TextureID = ""
+	end
+	for _, d in part:GetDescendants() do
+		if d:IsA("SurfaceAppearance") or d:IsA("Decal") or d:IsA("Texture") then
+			d:Destroy()
+		end
+	end
 end
 
 local function wear(player: Player)
@@ -35,7 +77,7 @@ local function wear(player: Player)
 	if current and current:GetAttribute("Tier") == tier then
 		return
 	end
-	local source = template(tier)
+	local source, features = template(tier)
 	if not source then
 		return
 	end
@@ -48,30 +90,17 @@ local function wear(player: Player)
 	end
 
 	local part = source:Clone()
+	part:ClearAllChildren()
 	part.Name = "TierHead"
 	part:SetAttribute("Tier", tier)
-	part.Anchored = false
-	part.CanCollide = false
+	plain(part, head.Color)
 	part.CanQuery = true -- exercise markers raycast onto it (still no collisions)
-	part.CanTouch = false
-	part.Massless = true
-	part.Color = head.Color
-	-- no uploaded face textures: Roblox auto-moderation flagged the head atlases as "off-site
-	-- links". The heads are plain skin-colored meshes; the shape carries the look.
-	part.TextureID = ""
-	-- the imported mesh brings a SurfaceAppearance (its moderated texture is gone -> pale/blue);
-	-- it overrides Color, so drop it and use plain skin
-	for _, d in part:GetDescendants() do
-		if d:IsA("SurfaceAppearance") or d:IsA("Decal") or d:IsA("Texture") then
-			d:Destroy()
-		end
-	end
-	part.Material = Enum.Material.SmoothPlastic
 	-- fit the model to this avatar's head size (models are built in a 1-stud box)
 	local fit = Config.TierHeadFit
 	-- keep the model's proportions: scale uniformly so its height matches the avatar head
 	local uniform = head.Size.Y * fit.scale[2] / source.Size.Y
-	part.Size = source.Size * uniform * Vector3.new(fit.scale[1] / fit.scale[2], 1, fit.scale[3] / fit.scale[2])
+	local stretch = Vector3.new(fit.scale[1] / fit.scale[2], 1, fit.scale[3] / fit.scale[2]) * uniform
+	part.Size = source.Size * stretch
 	local topY = head.Size.Y / 2 - part.Size.Y / 2 - fit.topInset
 	local offset = CFrame.new(0, topY, 0) * CFrame.Angles(0, math.rad(fit.rotateY), 0)
 
@@ -81,6 +110,28 @@ local function wear(player: Player)
 	weld.C0 = offset
 	weld.Parent = part
 	part.CFrame = head.CFrame * offset
+
+	-- face features keep their place relative to the skin mesh, scaled the same way
+	for _, f in features do
+		local rel = source.CFrame:ToObjectSpace(f.CFrame)
+		local piece = f:Clone()
+		piece:ClearAllChildren()
+		piece.Size = f.Size * stretch
+		local color = FEATURE_COLORS[f.Name] or head.Color
+		if f.Name == "Lips" then
+			color = head.Color:Lerp(LIP_TINT, 0.5)
+		end
+		plain(piece, color)
+		piece.CanQuery = false
+		local at = CFrame.new(rel.Position * stretch) * rel.Rotation
+		local w = Instance.new("Weld")
+		w.Part0 = part
+		w.Part1 = piece
+		w.C0 = at
+		w.Parent = piece
+		piece.CFrame = part.CFrame * at
+		piece.Parent = part
+	end
 	part.Parent = character
 
 	-- neck: skin-colored column from under the jaw down into the torso, so the jawline reads
