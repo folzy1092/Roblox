@@ -96,7 +96,8 @@ local function facePoint(h: BasePart, x: number, y: number): Vector3
 	if worn then
 		local fit = Config.FaceLayout
 		local size = worn.Size
-		local local_ = Vector3.new(x * fit.halfWidth * size.X / 2, (0.5 - (fit.top + (fit.brow - y) * fit.step)) * size.Y, 0)
+		local faceHeight = worn:GetAttribute("FaceHeight") or size.Y -- model below the chin is neck
+		local local_ = Vector3.new(x * fit.halfWidth * size.X / 2, size.Y / 2 - (fit.top + (fit.brow - y) * fit.step) * faceHeight, 0)
 		local frontDir = worn.CFrame.LookVector
 		local through = worn.CFrame:PointToWorldSpace(local_)
 		local origin = through + frontDir * size.Z * 2

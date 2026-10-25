@@ -175,6 +175,29 @@ def eyes(eye_obj, eye_png):
     return eye_obj, iris
 
 
+NECK_EXTRA = 0.35  # neck continues this share of the head height below the cut
+
+
+def extend_neck(head):
+    """Continue the neck straight down from the cut, so in game it goes into the torso and
+    no separate neck part is needed. Returns the share of the final height that is extra neck."""
+    bm = bmesh.new()
+    bm.from_mesh(head.data)
+    mw = head.matrix_world
+    zs = [(mw @ v.co).z for v in bm.verts]
+    lo, hi = min(zs), max(zs)
+    length = (hi - lo) * NECK_EXTRA
+    rim = [e for e in bm.edges if e.is_boundary and all((mw @ v.co).z < lo + (hi - lo) * 0.02 for v in e.verts)]
+    out = bmesh.ops.extrude_edge_only(bm, edges=rim)
+    down = mw.inverted().to_3x3() @ Vector((0, 0, -length))
+    for v in [g for g in out["geom"] if isinstance(g, bmesh.types.BMVert)]:
+        v.co += down
+    bm.normal_update()
+    bm.to_mesh(head.data)
+    bm.free()
+    return length / (hi - lo + length)
+
+
 def clean(obj):
     for mod in list(obj.modifiers):
         obj.modifiers.remove(mod)

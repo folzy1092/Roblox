@@ -186,9 +186,11 @@ local function wear(player: Player)
 	-- fit the model to this avatar's head size (models are built in a 1-stud box)
 	local fit = Config.TierHeadFit
 	-- keep the model's proportions: scale uniformly so its height matches the avatar head
-	local uniform = head.Size.Y * fit.scale[2] / source.Size.Y
+	local headShare = 1 - (fit.neckShare or 0) -- the model's own neck hangs below and goes into the torso
+	local uniform = head.Size.Y * fit.scale[2] / (source.Size.Y * headShare)
 	local stretch = Vector3.new(fit.scale[1] / fit.scale[2], 1, fit.scale[3] / fit.scale[2]) * uniform
 	part.Size = source.Size * stretch
+	part:SetAttribute("FaceHeight", part.Size.Y * headShare) -- crown .. chin, for exercise points
 	local topY = head.Size.Y / 2 - part.Size.Y / 2 - fit.topInset
 	local offset = CFrame.new(0, topY, 0) * CFrame.Angles(0, math.rad(fit.rotateY), 0)
 
@@ -222,6 +224,16 @@ local function wear(player: Player)
 	end
 	part.Parent = character
 	fitAccessories(character, head, part)
+
+	if not Config.TierNeck.enabled then
+		head.Transparency = 1
+		for _, d in head:GetChildren() do
+			if d:IsA("Decal") then
+				d.Transparency = 1
+			end
+		end
+		return
+	end
 
 	-- neck: skin-colored column from under the jaw down into the torso, so the jawline reads
 	local neckFit = Config.TierNeck

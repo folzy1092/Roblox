@@ -270,6 +270,8 @@ def main():
         brow = mh_parts.brows(basemesh, brows, data_path("eyebrows", brow_name, brow_name + ".png"))
         whites, irises = mh_parts.eyes(eyes, data_path("eyes", "materials", "brown_eye.png"))
         bpy.data.objects.remove(brows, do_unlink=True)
+        neck_share = mh_parts.extend_neck(basemesh)
+        print(f"[mh] {name}: neck share {neck_share:.4f}")
         group = [basemesh, lip, brow, whites, irises]
         for o in group:
             mh_parts.clean(o)

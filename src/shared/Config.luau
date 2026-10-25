@@ -47,7 +47,10 @@ Config.TierHeadFit = {
 	-- crown alignment: the model's top sits this many studs below the avatar head's top.
 	-- Negative = above it: the Roblox head's bottom touches the torso, a human head needs a neck
 	-- under the chin, so the model is lifted (hair follows the skull, see HairFit)
-	topInset = -0.25,
+	topInset = -0.15,
+	-- the model carries its own neck below the head (tools/blender mh_parts.extend_neck):
+	-- this share of the model's height is neck, the rest is the head that gets fitted
+	neckShare = 0.2593,
 	rotateY = 0, -- degrees, if the imported model faces the wrong way
 }
 
@@ -71,6 +74,7 @@ Config.FaceLayout = {
 
 -- Neck under the tier head (fractions of the avatar head size).
 Config.TierNeck = {
+	enabled = false, -- old cylinder neck; the tier models have a real neck now
 	length = 0.7, -- height of the column
 	width = 0.48, -- diameter left-right
 	depth = 1.05, -- front-back relative to width
