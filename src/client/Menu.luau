@@ -37,7 +37,7 @@ local function card(parent: Instance, order: number, color: Color3, title: strin
 	return button
 end
 
-function Menu.show(hudGui: ScreenGui)
+function Menu.show(hudGui: ScreenGui, openDuels: (() -> ())?)
 	local gui = Ui.screen("StartMenu", 10)
 	local root = Ui.make("Frame", {
 		Size = UDim2.fromScale(1, 1),
@@ -76,7 +76,13 @@ function Menu.show(hudGui: ScreenGui)
 	local to = if nextTier then nextTier.name else from
 
 	local start = card(row, 1, Ui.Colors.Good, Strings.get("menu.start"), Strings.get("menu.start_hint"), true)
-	card(row, 2, Ui.Colors.Muted, Strings.get("menu.duels"), Strings.get("menu.duels_hint"), false)
+	local duels = card(row, 2, Color3.fromRGB(220, 60, 90), Strings.get("menu.duels"), Strings.get("menu.duels_hint"), true)
+	duels.Activated:Connect(function()
+		gui:Destroy()
+		if openDuels then
+			openDuels()
+		end
+	end)
 	local rebirth = card(
 		row,
 		3,

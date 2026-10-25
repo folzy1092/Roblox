@@ -15,6 +15,7 @@ local RankLabel = require(script.Parent.RankLabel)
 local Face = require(script.Parent.Face)
 local HeadSwap = require(script.Parent.HeadSwap)
 local HeadWear = require(script.Parent.HeadWear)
+local Duels = require(script.Parent.Duels)
 local Trainers = require(script.Parent.Trainers)
 
 MapBuilder.build()
@@ -50,6 +51,7 @@ local function cachePasses(player: Player)
 end
 
 Trainers.init(ownsPass)
+Duels.init(Remotes.Duel)
 
 local function allowClick(player: Player): boolean
 	local now = os.clock()

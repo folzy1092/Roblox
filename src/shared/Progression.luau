@@ -10,6 +10,7 @@ export type Data = {
 	equipped: string,
 	boostLeft: number, -- seconds of x2 boost left (ticks only while online)
 	receipts: { string }, -- recent developer-product purchase ids (grant once)
+	duelWins: number,
 }
 
 export type ClickContext = {
@@ -31,6 +32,7 @@ function Progression.defaultData(): Data
 		equipped = "gum",
 		boostLeft = 0,
 		receipts = {},
+		duelWins = 0,
 	}
 end
 

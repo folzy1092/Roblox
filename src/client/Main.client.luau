@@ -27,9 +27,9 @@ local actions = {
 }
 local hudGui = Hud.init(actions)
 actions.menu = function()
-	Menu.show(hudGui)
+	Menu.show(hudGui, actions.duels)
 end
-Menu.show(hudGui)
+Menu.show(hudGui, actions.duels)
 FaceCamera.init()
 MirrorView.init()
 HeadMesh.init()

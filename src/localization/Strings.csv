@@ -3,7 +3,7 @@ menu.title,LOOKSMAX SIMULATOR,,,LOOKSMAX SIMULATOR,LOOKSMAX SIMULATOR
 menu.start,Start looksmaxxing,,,Start looksmaxxing,Начать прокачку
 menu.start_hint,Chew gum and level up your face,,,Chew gum and level up your face,Жуй жвачку и прокачивай лицо
 menu.duels,Duels,,,Duels,Дуэли
-menu.duels_hint,Coming soon,,,Coming soon,Скоро
+menu.duels_hint,Fight other players,,,Fight other players,Сразись с игроками
 menu.rebirth,Rebirth,,,Rebirth,Перерождение
 menu.rebirth_info,{from} → {to},,,{from} → {to},{from} → {to}
 hud.glow,Glow: {n},,,Glow: {n},Glow: {n}
@@ -81,3 +81,26 @@ hud.auto_on,Auto: ON,,,Auto: ON,Авто: ВКЛ
 hud.auto_off,Auto: OFF,,,Auto: OFF,Авто: ВЫКЛ
 workout.recover,Recover now — {price} R$,,,Recover now — {price} R$,Восстановиться — {price} R$
 workout.recovered,Back in shape!,,,Back in shape!,Снова в форме!
+duels.how,Pick a time and challenge a player. Same exercises for both — fastest and most accurate wins!,,,Pick a time and challenge a player. Same exercises for both — fastest and most accurate wins!,Выбери время и вызови игрока. Упражнения одинаковые — побеждает самый быстрый и точный!
+duels.nobody,Nobody else here yet — invite a friend!,,,Nobody else here yet — invite a friend!,Тут пока никого — позови друга!
+duels.challenge,Fight!,,,Fight!,В бой!
+duels.wins,Wins: {n},,,Wins: {n},Побед: {n}
+duels.sent,Challenge sent!,,,Challenge sent!,Вызов отправлен!
+duels.declined,Challenge declined,,,Challenge declined,Вызов отклонён
+duels.busy,Arena is full — try again in a moment,,,Arena is full — try again in a moment,Арена занята — попробуй чуть позже
+duels.in_match,Someone is already in a duel,,,Someone is already in a duel,Кто-то уже в дуэли
+duel.invited,{name} challenges you to a {t} duel!,,,{name} challenges you to a {t} duel!,{name} вызывает тебя на дуэль {t}!
+duel.accept,Accept,,,Accept,Принять
+duel.decline,Decline,,,Decline,Отказ
+duel.go,GO!,,,GO!,ВПЕРЁД!
+duel.hold,HOLD,,,HOLD,ДЕРЖИ
+duel.leave,Give up,,,Give up,Сдаться
+duel.kind.tap,BONE TAP! Hit the spots,,,BONE TAP! Hit the spots,BONE TAP! Бей по точкам
+duel.kind.rhythm,CHEW! Tap on the beat,,,CHEW! Tap on the beat,ЖУЙ! Жми в ритм
+duel.kind.hold,MEW! Hold in the green,,,MEW! Hold in the green,МЬЮИНГ! Держи в зелёном
+duel.result.win,VICTORY!,,,VICTORY!,ПОБЕДА!
+duel.result.lose,DEFEAT,,,DEFEAT,ПОРАЖЕНИЕ
+duel.result.draw,DRAW,,,DRAW,НИЧЬЯ
+duel.accuracy,Accuracy {n}%,,,Accuracy {n}%,Точность {n}%
+duel.forfeit,(opponent left),,,(opponent left),(соперник вышел)
+duel.reward,+{n} Glow,,,+{n} Glow,+{n} Glow
