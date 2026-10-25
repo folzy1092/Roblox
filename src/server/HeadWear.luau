@@ -66,6 +66,94 @@ local function plain(part: BasePart, color: Color3)
 	end
 end
 
+-- Hair and hats are authored for the standard Roblox head (a rounded ~1-stud box whose
+-- HairAttachment sits on top); Roblox scales them together with the head (HeadScale). Our skull
+-- is a real human one, narrower than that box, so the same hair floats around it. We measure the
+-- worn skull with rays and map the standard head onto it (scale + move about the crown), like
+-- HeadScale does, so hair sits on the head.
+local originals: { [BasePart]: { size: Vector3, rel: CFrame, meshScale: Vector3? } } = setmetatable({}, { __mode = "k" }) :: any
+
+local function skullBox(head: BasePart, skin: BasePart): (Vector3?, number?)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { skin }
+	local function hit(from: Vector3, dir: Vector3): Vector3?
+		local r = workspace:Raycast(head.CFrame:PointToWorldSpace(from), head.CFrame:VectorToWorldSpace(dir), params)
+		return r and head.CFrame:PointToObjectSpace(r.Position)
+	end
+	local reach = head.Size.Magnitude * 2
+	local top = hit(Vector3.new(0, reach, 0), Vector3.new(0, -2 * reach, 0))
+	if not top then
+		return nil
+	end
+	-- a band around the upper skull: above the ears, below the crown (where hair rests)
+	local y = top.Y - head.Size.Y * Config.HairFit.band
+	local l = hit(Vector3.new(-reach, y, 0), Vector3.new(2 * reach, 0, 0))
+	local r = hit(Vector3.new(reach, y, 0), Vector3.new(-2 * reach, 0, 0))
+	local f = hit(Vector3.new(0, y, -reach), Vector3.new(0, 0, 2 * reach))
+	local b = hit(Vector3.new(0, y, reach), Vector3.new(0, 0, -2 * reach))
+	if not (l and r and f and b) then
+		return nil
+	end
+	local cx, cz = (l.X + r.X) / 2, (f.Z + b.Z) / 2
+	local crown = hit(Vector3.new(cx, reach, cz), Vector3.new(0, -2 * reach, 0)) or top
+	local scale = ((r.X - l.X) / head.Size.X + (b.Z - f.Z) / head.Size.Z) / 2
+	scale = math.clamp(scale * Config.HairFit.snug, Config.HairFit.min, Config.HairFit.max)
+	return Vector3.new(cx, crown.Y, cz), scale
+end
+
+-- accessories hanging on the head's attachments (hair, hats, glasses, ...)
+local function headAccessories(character: Model, head: BasePart): { BasePart }
+	local out = {}
+	for _, acc in character:GetChildren() do
+		local handle = acc:IsA("Accessory") and acc:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			for _, att in handle:GetChildren() do
+				if att:IsA("Attachment") and head:FindFirstChild(att.Name) then
+					table.insert(out, handle)
+					break
+				end
+			end
+		end
+	end
+	return out
+end
+
+local function fitAccessories(character: Model, head: BasePart, skin: BasePart)
+	local crown, scale = skullBox(head, skin)
+	if not crown or not scale then
+		return
+	end
+	local oldCrown = Vector3.new(0, head.Size.Y / 2, 0) -- standard head: HairAttachment on top
+	for _, handle in headAccessories(character, head) do
+		local orig = originals[handle]
+		if not orig then
+			local mesh = handle:FindFirstChildOfClass("SpecialMesh")
+			orig = { size = handle.Size, rel = head.CFrame:ToObjectSpace(handle.CFrame), meshScale = mesh and mesh.Scale }
+			originals[handle] = orig
+		end
+		local rel = CFrame.new(crown + (orig.rel.Position - oldCrown) * scale) * orig.rel.Rotation
+		handle.Size = orig.size * scale
+		local mesh = handle:FindFirstChildOfClass("SpecialMesh")
+		if mesh and orig.meshScale then
+			mesh.Scale = orig.meshScale * scale
+		end
+		-- replace the attachment weld by a fixed one at the fitted spot
+		for _, joint in handle:GetChildren() do
+			if joint.Name == "AccessoryWeld" or joint:IsA("RigidConstraint") then
+				joint:Destroy()
+			end
+		end
+		local weld = handle:FindFirstChild("TierFitWeld") :: Weld? or Instance.new("Weld")
+		weld.Name = "TierFitWeld"
+		weld.Part0 = head
+		weld.Part1 = handle
+		weld.C0 = rel
+		weld.C1 = CFrame.identity
+		weld.Parent = handle
+	end
+end
+
 local function wear(player: Player)
 	local character = player.Character
 	local head = character and character:FindFirstChild("Head") :: BasePart?
@@ -133,6 +221,7 @@ local function wear(player: Player)
 		piece.Parent = part
 	end
 	part.Parent = character
+	fitAccessories(character, head, part)
 
 	-- neck: skin-colored column from under the jaw down into the torso, so the jawline reads
 	local neckFit = Config.TierNeck

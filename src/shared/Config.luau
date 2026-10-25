@@ -43,11 +43,20 @@ Config.UseMeshHeads = false
 Config.UseTierHeadModels = true
 -- Plain numbers (no Roblox types here, Config is also loaded by Lune tests).
 Config.TierHeadFit = {
-	scale = { 1.2, 1.08, 1.05 }, -- model height = avatar head height * y; x/z vs y widen it (hair is made for the wide avatar head)
+	scale = { 1.08, 1.08, 1.08 }, -- model height = avatar head height * y; x/z vs y stretch it (equal = real proportions)
 	-- crown alignment: the model's top sits this many studs below the avatar head's top,
 	-- so hair/hats (made for the avatar head) cover the skull; the neck goes down into the torso
 	topInset = 0.0,
 	rotateY = 0, -- degrees, if the imported model faces the wrong way
+}
+
+-- Hair / hats are made for the standard Roblox head; server/HeadWear measures the worn skull and
+-- scales them onto it like Roblox's HeadScale (HumanoidDescription) does.
+Config.HairFit = {
+	band = 0.25, -- skull is measured this far below the crown (share of head height): above the ears
+	snug = 1.0, -- < 1 pulls hair tighter onto the skull
+	min = 0.7,
+	max = 1.15,
 }
 
 -- Where exercise points sit on the worn tier head (fractions of the head model, top = 0).
